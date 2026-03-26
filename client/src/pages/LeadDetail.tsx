@@ -37,6 +37,9 @@ import {
   Check,
   Sparkles,
   Eye,
+  MessageSquare,
+  Send,
+  Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -92,6 +95,12 @@ export default function LeadDetail() {
 
   // Copy state
   const [copiedId, setCopiedId] = useState<number | null>(null);
+
+  // Follow-up text state
+  const [showFollowUp, setShowFollowUp] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+  const [editedText, setEditedText] = useState("");
+  const [textCopied, setTextCopied] = useState(false);
 
   const updateLead = trpc.leads.update.useMutation({
     onSuccess: () => {
@@ -367,6 +376,10 @@ export default function LeadDetail() {
             <TabsList className="bg-secondary/50">
               <TabsTrigger value="calls">Call History ({calls?.length ?? 0})</TabsTrigger>
               <TabsTrigger value="notes">Notes ({notesList?.length ?? 0})</TabsTrigger>
+              <TabsTrigger value="followup">
+                <MessageSquare className="h-3.5 w-3.5 mr-1" />
+                Follow-Up Texts
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="calls" className="space-y-4">
@@ -450,6 +463,156 @@ export default function LeadDetail() {
                   <p>No notes yet. Add one above.</p>
                 </div>
               )}
+            </TabsContent>
+
+            <TabsContent value="followup" className="space-y-4">
+              {(() => {
+                const biz = lead.businessName;
+                const previewLink = websites && websites.length > 0 && websites[0].previewToken
+                  ? `${window.location.origin}/preview/${websites[0].previewToken}`
+                  : "[website preview link]";
+
+                const templates = [
+                  {
+                    id: "interested-website",
+                    label: "Interested — Sending Website Preview",
+                    icon: "\uD83C\uDF10",
+                    color: "border-emerald-500/30 bg-emerald-500/5",
+                    text: `Hey! This is [Your Name] from J&J Management Solutions. It was great speaking with you just now. As promised, here's the website preview I put together for ${biz}:\n\n${previewLink}\n\nTake a look when you get a chance and let me know what you think. Everything on it can be customized to fit exactly what you need. Looking forward to hearing your thoughts!`,
+                  },
+                  {
+                    id: "schedule-meeting",
+                    label: "Interested — Scheduling a Meeting",
+                    icon: "\uD83D\uDCC5",
+                    color: "border-blue-500/30 bg-blue-500/5",
+                    text: `Hey! This is [Your Name] from J&J Management Solutions. Really enjoyed our conversation about ${biz}. I'd love to sit down and go over some ideas for how we can help grow your online presence.\n\nWould [Day] at [Time] work for a quick meeting? I can come to you or we can do a phone call — whatever's easiest.\n\nLooking forward to it!`,
+                  },
+                  {
+                    id: "warm-not-ready",
+                    label: "Warm — Not Ready Yet",
+                    icon: "\u23F3",
+                    color: "border-amber-500/30 bg-amber-500/5",
+                    text: `Hey! This is [Your Name] from J&J Management Solutions. I appreciate you taking the time to chat today about ${biz}. I totally understand you're not looking to make any changes right now.\n\nI'll check back in with you down the road. In the meantime, if anything comes up or you have any questions about getting online, don't hesitate to reach out. Have a great rest of your day!`,
+                  },
+                  {
+                    id: "voicemail-followup",
+                    label: "Left Voicemail — First Touch",
+                    icon: "\uD83D\uDCDE",
+                    color: "border-violet-500/30 bg-violet-500/5",
+                    text: `Hey! This is [Your Name] with J&J Management Solutions. I just tried giving you a call about ${biz}. We help local businesses like yours get set up with a professional website to bring in more customers.\n\nI'd love to chat for just a couple minutes when you get a chance. Feel free to call or text me back at this number. Have a great day!`,
+                  },
+                  {
+                    id: "post-meeting",
+                    label: "Post-Meeting — Next Steps",
+                    icon: "\u2705",
+                    color: "border-cyan-500/30 bg-cyan-500/5",
+                    text: `Hey! This is [Your Name] from J&J Management Solutions. Thanks again for meeting with me today to talk about ${biz}. I'm excited about what we can put together for you.\n\nHere's what I'm going to get started on:\n- [Next step 1]\n- [Next step 2]\n\nI'll have something to show you by [timeline]. If you think of anything else in the meantime, just shoot me a text!`,
+                  },
+                  {
+                    id: "follow-up-check-in",
+                    label: "Follow-Up Check-In (After Sending Preview)",
+                    icon: "\uD83D\uDC4B",
+                    color: "border-pink-500/30 bg-pink-500/5",
+                    text: `Hey! Just wanted to follow up on the website preview I sent over for ${biz}. Have you had a chance to take a look at it yet?\n\nIf you have any questions or want to make any changes, I'm happy to walk you through it. Just let me know!`,
+                  },
+                ];
+
+                return (
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      Select a follow-up template below. The business name is auto-filled. Edit the text if needed, then copy to send.
+                    </p>
+
+                    {!selectedTemplate ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {templates.map((t) => (
+                          <button
+                            key={t.id}
+                            onClick={() => {
+                              setSelectedTemplate(t.id);
+                              setEditedText(t.text);
+                              setTextCopied(false);
+                            }}
+                            className={`text-left rounded-lg border-2 p-4 transition-all hover:shadow-md ${t.color}`}
+                          >
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-lg">{t.icon}</span>
+                              <h4 className="font-semibold text-sm">{t.label}</h4>
+                            </div>
+                            <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
+                              {t.text.split("\n")[0]}
+                            </p>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <Card className="border-border/50">
+                        <CardHeader className="pb-3">
+                          <div className="flex items-center justify-between">
+                            <CardTitle className="text-base flex items-center gap-2">
+                              <Pencil className="h-4 w-4" />
+                              {templates.find((t) => t.id === selectedTemplate)?.label}
+                            </CardTitle>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setSelectedTemplate(null);
+                                setEditedText("");
+                                setTextCopied(false);
+                              }}
+                            >
+                              <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back
+                            </Button>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <Textarea
+                            value={editedText}
+                            onChange={(e) => {
+                              setEditedText(e.target.value);
+                              setTextCopied(false);
+                            }}
+                            rows={10}
+                            className="font-mono text-sm leading-relaxed"
+                          />
+                          <div className="flex items-center gap-2">
+                            <Button
+                              className="flex-1"
+                              onClick={() => {
+                                navigator.clipboard.writeText(editedText);
+                                setTextCopied(true);
+                                toast.success("Follow-up text copied to clipboard!");
+                                setTimeout(() => setTextCopied(false), 3000);
+                              }}
+                            >
+                              {textCopied ? (
+                                <><Check className="h-4 w-4 mr-2" /> Copied!</>
+                              ) : (
+                                <><Copy className="h-4 w-4 mr-2" /> Copy to Clipboard</>
+                              )}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              onClick={() => {
+                                const original = templates.find((t) => t.id === selectedTemplate)?.text ?? "";
+                                setEditedText(original);
+                                setTextCopied(false);
+                                toast.info("Text reset to original template.");
+                              }}
+                            >
+                              Reset
+                            </Button>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Replace [Your Name], [Day], [Time], and any other bracketed items before sending. The business name ({biz}) is already filled in.
+                          </p>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+                );
+              })()}
             </TabsContent>
           </Tabs>
         </div>

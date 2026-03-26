@@ -61,3 +61,11 @@
 - [x] Each template has unique layout structure, typography, and section ordering
 - [ ] Generated websites include multi-page structure (Home, Services, About, Contact)
 - [ ] Test generation across multiple industries to verify quality and variety
+
+## Follow-Up Text Templates
+- [x] Create 6 follow-up text templates for different call outcomes
+- [x] Add Follow-Up Texts tab to LeadDetail page
+- [x] Auto-fill business name and website preview link into templates
+- [x] One-click copy to clipboard for pasting into messaging app
+- [x] Editable text before copying for personalization
+- [x] Reset button to restore original template text
