@@ -1,17 +1,9 @@
 import { trpc } from "@/lib/trpc";
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -24,25 +16,63 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Search, MapPin, Loader2, CheckCircle, XCircle, Clock } from "lucide-react";
 import { toast } from "sonner";
 
-const presetQueries = [
-  "plumber",
-  "electrician",
-  "HVAC contractor",
-  "landscaping",
-  "roofing contractor",
-  "auto repair",
-  "cleaning service",
-  "pest control",
-  "painting contractor",
-  "handyman",
-  "moving company",
-  "flooring contractor",
+// ── OKC Metro Cities ─────────────────────────────────────────────────────────
+const OKC_METRO_CITIES = [
+  "Oklahoma City",
+  "Edmond",
+  "Norman",
+  "Moore",
+  "Midwest City",
+  "Del City",
+  "Yukon",
+  "Mustang",
+  "Bethany",
+  "Warr Acres",
+  "The Village",
+  "Nichols Hills",
+  "Choctaw",
+  "Harrah",
+  "Jones",
+  "Luther",
+  "Piedmont",
+  "Tuttle",
+  "Newcastle",
+  "Blanchard",
+  "Noble",
+  "Purcell",
+  "Shawnee",
+  "Tecumseh",
+  "El Reno",
+  "Guthrie",
+];
+
+// ── Industry Presets ─────────────────────────────────────────────────────────
+const INDUSTRY_PRESETS = [
+  "Plumber",
+  "Electrician",
+  "HVAC Contractor",
+  "Roofer",
+  "Landscaper",
+  "Fencing Contractor",
+  "Concrete Contractor",
+  "Painter",
+  "Handyman",
+  "Pest Control",
+  "Cleaning Service",
+  "Pressure Washing",
+  "Junk Removal",
+  "Auto Detailing",
+  "Moving Company",
+  "Flooring Contractor",
+  "Garage Door Repair",
+  "Tree Service",
+  "Lawn Care",
+  "Pool Service",
 ];
 
 export default function Scraper() {
-  const [query, setQuery] = useState("");
-  const [location, setLocation] = useState("");
-  const [radius, setRadius] = useState("5000");
+  const [selectedIndustry, setSelectedIndustry] = useState("");
+  const [selectedCities, setSelectedCities] = useState<Set<string>>(new Set());
 
   const { data: jobs, isLoading: jobsLoading } = trpc.scraper.jobs.useQuery();
   const utils = trpc.useUtils();
@@ -53,7 +83,7 @@ export default function Scraper() {
       utils.leads.list.invalidate();
       utils.dashboard.stats.invalidate();
       toast.success(
-        `Found ${result.totalFound} businesses, created ${result.leadsCreated} leads with pain points`
+        `Scraped ${result.totalFound} businesses across ${result.cityResults.length} cities — ${result.leadsCreated} new leads without websites added`
       );
     },
     onError: (err) => {
@@ -62,15 +92,36 @@ export default function Scraper() {
     },
   });
 
+  const toggleCity = (city: string) => {
+    setSelectedCities((prev) => {
+      const next = new Set(prev);
+      if (next.has(city)) next.delete(city);
+      else next.add(city);
+      return next;
+    });
+  };
+
+  const selectAllCities = () => {
+    if (selectedCities.size === OKC_METRO_CITIES.length) {
+      setSelectedCities(new Set());
+    } else {
+      setSelectedCities(new Set(OKC_METRO_CITIES));
+    }
+  };
+
   const handleSearch = () => {
-    if (!query.trim() || !location.trim()) {
-      toast.error("Please enter both a business type and location");
+    if (!selectedIndustry) {
+      toast.error("Please select an industry");
+      return;
+    }
+    if (selectedCities.size === 0) {
+      toast.error("Please select at least one city");
       return;
     }
     searchMutation.mutate({
-      query: query.trim(),
-      location: location.trim(),
-      radius: parseInt(radius),
+      industry: selectedIndustry,
+      cities: Array.from(selectedCities),
+      state: "OK",
     });
   };
 
@@ -92,97 +143,100 @@ export default function Scraper() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Lead Scraper</h1>
         <p className="text-muted-foreground mt-1">
-          Find businesses without websites on Google Maps and add them to your pipeline.
+          Find businesses without websites in the OKC metro area. Select an industry and cities, then scrape.
         </p>
       </div>
 
-      {/* Search Form */}
+      {/* Industry Selection */}
       <Card className="border-border/50">
         <CardHeader>
-          <CardTitle className="text-base">Search Google Maps</CardTitle>
+          <CardTitle className="text-base">1. Select Industry</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <Label>Business Type / Industry</Label>
-              <Input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="e.g. plumber, HVAC, landscaping"
-              />
-            </div>
-            <div>
-              <Label>City & State</Label>
-              <Input
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                placeholder="e.g. Oklahoma City, OK or Dallas, TX"
-              />
-            </div>
-            <div>
-              <Label>Radius (meters)</Label>
-              <Select value={radius} onValueChange={setRadius}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="2000">2 km (~1.2 mi)</SelectItem>
-                  <SelectItem value="5000">5 km (~3 mi)</SelectItem>
-                  <SelectItem value="10000">10 km (~6 mi)</SelectItem>
-                  <SelectItem value="20000">20 km (~12 mi)</SelectItem>
-                  <SelectItem value="50000">50 km (~31 mi)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+        <CardContent>
+          <div className="flex flex-wrap gap-2">
+            {INDUSTRY_PRESETS.map((industry) => (
+              <button
+                key={industry}
+                onClick={() => setSelectedIndustry(industry)}
+                className={`px-3 py-1.5 rounded-full text-sm transition-colors border ${
+                  selectedIndustry === industry
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-secondary/50 text-muted-foreground border-border hover:border-primary/30 hover:text-foreground"
+                }`}
+              >
+                {industry}
+              </button>
+            ))}
           </div>
-
-          {/* Quick presets */}
-          <div>
-            <Label className="text-xs text-muted-foreground">Quick Select Industry</Label>
-            <div className="flex flex-wrap gap-2 mt-2">
-              {presetQueries.map((preset) => (
-                <button
-                  key={preset}
-                  onClick={() => setQuery(preset)}
-                  className={`px-3 py-1 rounded-full text-xs transition-colors border ${
-                    query === preset
-                      ? "bg-primary/15 text-primary border-primary/30"
-                      : "bg-secondary/50 text-muted-foreground border-border hover:border-primary/30"
-                  }`}
-                >
-                  {preset}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <Button
-            onClick={handleSearch}
-            disabled={searchMutation.isPending || !query.trim() || !location.trim()}
-            className="w-full sm:w-auto"
-          >
-            {searchMutation.isPending ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Scraping... (this may take a moment)
-              </>
-            ) : (
-              <>
-                <Search className="h-4 w-4 mr-2" />
-                Search & Scrape
-              </>
-            )}
-          </Button>
+          {selectedIndustry && (
+            <p className="mt-3 text-sm text-primary">
+              Selected: <span className="font-semibold">{selectedIndustry}</span>
+            </p>
+          )}
         </CardContent>
       </Card>
 
-      {/* Recent Results */}
+      {/* City Selection */}
+      <Card className="border-border/50">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-base">2. Select Cities</CardTitle>
+          <Button variant="outline" size="sm" onClick={selectAllCities}>
+            {selectedCities.size === OKC_METRO_CITIES.length ? "Deselect All" : "Select All OKC Metro"}
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            {OKC_METRO_CITIES.map((city) => (
+              <label
+                key={city}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors text-sm ${
+                  selectedCities.has(city)
+                    ? "bg-primary/10 border-primary/30 text-foreground"
+                    : "bg-secondary/30 border-border hover:border-primary/20 text-muted-foreground"
+                }`}
+              >
+                <Checkbox
+                  checked={selectedCities.has(city)}
+                  onCheckedChange={() => toggleCity(city)}
+                />
+                {city}
+              </label>
+            ))}
+          </div>
+          <p className="mt-3 text-sm text-muted-foreground">
+            {selectedCities.size} of {OKC_METRO_CITIES.length} cities selected
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Scrape Button */}
+      <Button
+        onClick={handleSearch}
+        disabled={searchMutation.isPending || !selectedIndustry || selectedCities.size === 0}
+        size="lg"
+        className="w-full"
+      >
+        {searchMutation.isPending ? (
+          <>
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            Scraping {selectedCities.size} cities... (this may take a few minutes)
+          </>
+        ) : (
+          <>
+            <Search className="h-4 w-4 mr-2" />
+            Scrape "{selectedIndustry || "..."}" across {selectedCities.size} cities
+          </>
+        )}
+      </Button>
+
+      {/* Latest Results */}
       {searchMutation.data && (
-        <Card className="border-border/50 border-primary/20">
+        <Card className="border-primary/20">
           <CardHeader>
             <CardTitle className="text-base text-primary">Latest Scrape Results</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            {/* Summary */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
               <div>
                 <p className="text-2xl font-bold">{searchMutation.data.totalFound}</p>
@@ -190,19 +244,49 @@ export default function Scraper() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-primary">{searchMutation.data.leadsCreated}</p>
-                <p className="text-xs text-muted-foreground">Leads Created</p>
+                <p className="text-xs text-muted-foreground">New Leads (No Website)</p>
               </div>
               <div>
-                <p className="text-2xl font-bold text-muted-foreground">
-                  {(searchMutation.data as any).skippedNoPainPoint ?? 0}
-                </p>
+                <p className="text-2xl font-bold text-muted-foreground">{searchMutation.data.totalSkippedHasWebsite}</p>
                 <p className="text-xs text-muted-foreground">Had Website</p>
               </div>
               <div>
-                <p className="text-2xl font-bold text-muted-foreground">
-                  {((searchMutation.data as any).skippedDistance ?? 0) + ((searchMutation.data as any).skippedAddress ?? 0)}
-                </p>
-                <p className="text-xs text-muted-foreground">Filtered (Location)</p>
+                <p className="text-2xl font-bold text-muted-foreground">{searchMutation.data.totalSkippedDuplicate}</p>
+                <p className="text-xs text-muted-foreground">Duplicates Skipped</p>
+              </div>
+            </div>
+
+            {/* Per-City Breakdown */}
+            <div>
+              <h4 className="text-sm font-medium mb-2">City Breakdown</h4>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead>City</TableHead>
+                      <TableHead className="text-right">Found</TableHead>
+                      <TableHead className="text-right">No Website</TableHead>
+                      <TableHead className="text-right">Duplicates</TableHead>
+                      <TableHead className="text-right">Created</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {searchMutation.data.cityResults.map((cr) => (
+                      <TableRow key={cr.city}>
+                        <TableCell className="font-medium text-sm">
+                          <div className="flex items-center gap-1">
+                            <MapPin className="h-3 w-3 text-muted-foreground" />
+                            {cr.city}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right text-sm">{cr.found}</TableCell>
+                        <TableCell className="text-right text-sm">{cr.noWebsite}</TableCell>
+                        <TableCell className="text-right text-sm text-muted-foreground">{cr.duplicates}</TableCell>
+                        <TableCell className="text-right text-sm font-medium text-primary">{cr.created}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
             </div>
           </CardContent>
@@ -219,8 +303,8 @@ export default function Scraper() {
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead>Query</TableHead>
-                  <TableHead>Location</TableHead>
+                  <TableHead>Industry</TableHead>
+                  <TableHead>Cities</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Found</TableHead>
                   <TableHead>Leads</TableHead>
@@ -248,10 +332,10 @@ export default function Scraper() {
                   jobs.map((job) => (
                     <TableRow key={job.id}>
                       <TableCell className="font-medium text-sm">{job.query}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
+                      <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">
                         <div className="flex items-center gap-1">
-                          <MapPin className="h-3 w-3" />
-                          {job.location}
+                          <MapPin className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{job.location}</span>
                         </div>
                       </TableCell>
                       <TableCell>

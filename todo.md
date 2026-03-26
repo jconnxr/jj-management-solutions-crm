@@ -28,3 +28,14 @@
 - [ ] Scraper location filtering still needs real-world testing
 - [ ] Remove unused pages (Projects, Intake, ProjectDetail) from codebase
 - [ ] Dashboard quick actions need cleanup
+
+## Google Sheets Import
+- [x] Import leads from user's Google Sheet into CRM database (85 leads → 87 total in DB)
+- [x] Map columns: Business Name, City, Industry, Phone, Implementation Type, Internal Notes
+
+## Scraper Rebuild (OKC Metro)
+- [x] Pre-built OKC metro city list (26 cities)
+- [x] No-website-only filter (remove low reviews/booking pain points)
+- [x] Industry presets for blue-collar services (20 presets)
+- [x] Duplicate detection by Google Place ID
+- [x] Per-city search across metro area with city breakdown

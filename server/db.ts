@@ -160,6 +160,16 @@ export async function bulkCreateLeads(leadsData: InsertLead[]) {
   return withScores.length;
 }
 
+export async function getExistingPlaceIds(placeIds: string[]): Promise<Set<string>> {
+  const db = await getDb();
+  if (!db) return new Set();
+  if (placeIds.length === 0) return new Set();
+  const rows = await db.select({ googlePlaceId: leads.googlePlaceId })
+    .from(leads)
+    .where(sql`${leads.googlePlaceId} IN (${sql.join(placeIds.map(id => sql`${id}`), sql`, `)})`);
+  return new Set(rows.map(r => r.googlePlaceId).filter(Boolean) as string[]);
+}
+
 function calculateLeadScore(lead: Partial<InsertLead>): number {
   let score = 0;
   if (lead.hasNoWebsite) score += 40;

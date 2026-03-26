@@ -1,0 +1,18 @@
+{
+  "query": "SHOW COLUMNS FROM leads WHERE Field = 'source';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3P9H8khdWVcmizD.065098e49b9a --database h6cag4yZseQ24Sa6JcBbXo --execute SHOW COLUMNS FROM leads WHERE Field = 'source';",
+  "rows": [
+    {
+      "Field": "source",
+      "Type": "enum('google_maps','facebook','referral','manual','cold_call')",
+      "Null": "NO",
+      "Key": "",
+      "Default": "manual",
+      "Extra": ""
+    }
+  ],
+  "messages": [],
+  "stdout": "Field\tType\tNull\tKey\tDefault\tExtra\nsource\tenum('google_maps','facebook','referral','manual','cold_call')\tNO\t\tmanual\t\n",
+  "stderr": "",
+  "execution_time_ms": 490
+}

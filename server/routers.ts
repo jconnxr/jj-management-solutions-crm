@@ -419,7 +419,7 @@ Return ONLY the complete HTML code, starting with <!DOCTYPE html> and ending wit
   }),
 
   // =========================================================================
-  // Google Maps Scraper
+  // Google Maps Scraper — OKC Metro focused, no-website-only
   // =========================================================================
   scraper: router({
     jobs: protectedProcedure.query(async () => {
@@ -428,195 +428,134 @@ Return ONLY the complete HTML code, starting with <!DOCTYPE html> and ending wit
 
     search: protectedProcedure
       .input(z.object({
-        query: z.string().min(1),
-        location: z.string().min(1),
-        radius: z.number().min(1000).max(50000).optional(),
+        industry: z.string().min(1),
+        cities: z.array(z.string().min(1)).min(1),
+        state: z.string().default("OK"),
       }))
       .mutation(async ({ input }) => {
-        // Create scrape job record
+        const allNewLeads: any[] = [];
+        let totalFound = 0;
+        let totalSkippedHasWebsite = 0;
+        let totalSkippedDuplicate = 0;
+        const cityResults: { city: string; found: number; noWebsite: number; duplicates: number; created: number }[] = [];
+
+        // Create a single scrape job for the batch
         const jobId = await db.createScrapeJob({
-          query: input.query,
-          location: input.location,
-          radius: input.radius ?? 5000,
+          query: input.industry,
+          location: input.cities.join(", "),
+          radius: 0,
           status: "running",
         });
 
         try {
-          // Step 1: Geocode the location to get lat/lng coordinates
-          // The Text Search API's location param needs lat,lng — plain text like
-          // "Oklahoma City" gets ignored and returns results from anywhere.
-          let locationCoords: string | undefined;
-          let targetCity = "";
-          let targetState = "";
+          for (const city of input.cities) {
+            const fullLocation = `${city}, ${input.state}`;
+            // Search with city baked into the query for accurate results
+            const searchQuery = `${input.industry} in ${fullLocation}`;
 
-          // Check if location is already lat,lng format
-          const latLngMatch = input.location.match(/^(-?\d+\.?\d*),\s*(-?\d+\.?\d*)$/);
-          if (latLngMatch) {
-            locationCoords = input.location;
-          } else {
-            // Geocode the text address to coordinates
-            const geocodeResult = await makeRequest<GeocodingResult>(
-              "/maps/api/geocode/json",
-              { address: input.location }
+            console.log(`[Scraper] Searching: "${searchQuery}"`);
+
+            const searchResult = await makeRequest<PlacesSearchResult>(
+              "/maps/api/place/textsearch/json",
+              { query: searchQuery }
             );
-            if (geocodeResult.status === "OK" && geocodeResult.results?.length > 0) {
-              const geo = geocodeResult.results[0];
-              locationCoords = `${geo.geometry.location.lat},${geo.geometry.location.lng}`;
-              console.log(`[Scraper] Geocoded "${input.location}" -> ${locationCoords} (${geo.formatted_address})`);
-              // Extract city and state from geocode for post-filtering
-              for (const comp of geo.address_components) {
-                if (comp.types.includes("locality")) {
-                  targetCity = comp.long_name.toLowerCase();
-                }
-                if (comp.types.includes("administrative_area_level_1")) {
-                  targetState = comp.short_name.toUpperCase();
-                }
-              }
+
+            if (searchResult.status !== "OK" || !searchResult.results?.length) {
+              console.log(`[Scraper] No results for "${searchQuery}"`);
+              cityResults.push({ city, found: 0, noWebsite: 0, duplicates: 0, created: 0 });
+              continue;
             }
-          }
 
-          // Step 2: Text search — include location name in query for better scoping
-          // e.g. "plumber in Oklahoma City" instead of just "plumber"
-          const scopedQuery = locationCoords
-            ? `${input.query} in ${input.location}`
-            : input.query;
+            const found = searchResult.results.length;
+            totalFound += found;
 
-          const searchParams: Record<string, unknown> = {
-            query: scopedQuery,
-          };
-          if (locationCoords) {
-            searchParams.location = locationCoords;
-            searchParams.radius = input.radius ?? 10000;
-          }
+            // Collect all place IDs from this batch to check for duplicates
+            const placeIds = searchResult.results.map(p => p.place_id).filter(Boolean);
+            const existingIds = await db.getExistingPlaceIds(placeIds);
 
-          const searchResult = await makeRequest<PlacesSearchResult>(
-            "/maps/api/place/textsearch/json",
-            searchParams
-          );
+            let cityNoWebsite = 0;
+            let cityDuplicates = 0;
+            const cityLeads: any[] = [];
 
-          if (searchResult.status !== "OK" || !searchResult.results?.length) {
-            await db.updateScrapeJob(jobId, {
-              status: "completed",
-              totalFound: 0,
-              leadsCreated: 0,
-              completedAt: new Date(),
-            });
-            return { jobId, totalFound: 0, leadsCreated: 0, leads: [] };
-          }
+            for (const place of searchResult.results) {
+              try {
+                // Skip duplicates
+                if (place.place_id && existingIds.has(place.place_id)) {
+                  cityDuplicates++;
+                  totalSkippedDuplicate++;
+                  continue;
+                }
 
-          const totalFound = searchResult.results.length;
-          const newLeads: any[] = [];
-
-          // Helper: calculate distance between two lat/lng points in meters
-          const haversineDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
-            const R = 6371000; // Earth radius in meters
-            const toRad = (d: number) => (d * Math.PI) / 180;
-            const dLat = toRad(lat2 - lat1);
-            const dLng = toRad(lng2 - lng1);
-            const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-          };
-
-          // Parse center coordinates for distance filtering
-          let centerLat: number | null = null;
-          let centerLng: number | null = null;
-          if (locationCoords) {
-            const [lat, lng] = locationCoords.split(",").map(Number);
-            centerLat = lat;
-            centerLng = lng;
-          }
-          const maxDistance = (input.radius ?? 10000) * 5; // generous 5x radius for metro area spread
-
-          // Step 3: Get details for each place to check for website
-          let skippedDistance = 0;
-          let skippedAddress = 0;
-          let skippedNoPainPoint = 0;
-
-          for (const place of searchResult.results) {
-            try {
-              // Post-filter: skip results that are geographically too far
-              // Use generous 5x radius to account for metro area spread
-              if (centerLat !== null && centerLng !== null && place.geometry?.location) {
-                const dist = haversineDistance(
-                  centerLat, centerLng,
-                  place.geometry.location.lat, place.geometry.location.lng
+                const details = await makeRequest<PlaceDetailsResult>(
+                  "/maps/api/place/details/json",
+                  {
+                    place_id: place.place_id,
+                    fields: "name,formatted_address,formatted_phone_number,website,rating,user_ratings_total,geometry",
+                  }
                 );
-                if (dist > maxDistance) {
-                  skippedDistance++;
-                  continue; // Skip — outside target area
-                }
-              }
 
-              const details = await makeRequest<PlaceDetailsResult>(
-                "/maps/api/place/details/json",
-                {
-                  place_id: place.place_id,
-                  fields: "name,formatted_address,formatted_phone_number,website,rating,user_ratings_total,geometry",
-                }
-              );
-
-              if (details.status === "OK" && details.result) {
+                if (details.status !== "OK" || !details.result) continue;
                 const r = details.result;
 
-                // Post-filter: verify the address contains the target city OR state
-                // Use OR logic — if EITHER city or state matches, it's in the area
-                const addr = (r.formatted_address ?? "").toLowerCase();
-                const cityMatch = targetCity ? addr.includes(targetCity) : true;
-                const stateMatch = targetState ? addr.includes(targetState.toLowerCase()) : true;
-                if (targetCity && targetState && !cityMatch && !stateMatch) {
-                  skippedAddress++;
-                  continue; // Skip — address doesn't match target area at all
+                // Verify the result is actually in Oklahoma
+                const addr = (r.formatted_address ?? "").toUpperCase();
+                if (!addr.includes(input.state.toUpperCase())) {
+                  continue; // Wrong state entirely
                 }
 
-                const hasNoWebsite = !r.website;
-                const hasLowReviews = (r.user_ratings_total ?? 0) < 10 || (r.rating ?? 0) < 3.5;
-
-                // Only add leads that match pain points (primarily no website)
-                if (hasNoWebsite || hasLowReviews) {
-                  // Parse address components
-                  const addressParts = (r.formatted_address ?? "").split(",").map(s => s.trim());
-                  const city = addressParts[1] ?? "";
-                  const stateZip = addressParts[2] ?? "";
-                  const stateParts = stateZip.split(" ");
-                  const state = stateParts[0] ?? "";
-                  const zipCode = stateParts[1] ?? "";
-
-                  newLeads.push({
-                    businessName: r.name,
-                    address: r.formatted_address,
-                    city,
-                    state,
-                    zipCode,
-                    phone: r.formatted_phone_number ?? null,
-                    website: r.website ?? null,
-                    googlePlaceId: place.place_id,
-                    googleRating: r.rating ?? null,
-                    googleReviewCount: r.user_ratings_total ?? null,
-                    latitude: r.geometry?.location?.lat ?? null,
-                    longitude: r.geometry?.location?.lng ?? null,
-                    hasNoWebsite,
-                    hasLowReviews,
-                    hasPoorBooking: false,
-                    hasWeakCta: false,
-                    source: "google_maps" as const,
-                    industry: input.query,
-                  });
-                } else {
-                  skippedNoPainPoint++;
+                // ONLY capture businesses WITHOUT a website
+                if (r.website) {
+                  totalSkippedHasWebsite++;
+                  continue;
                 }
+
+                cityNoWebsite++;
+
+                // Parse address components
+                const addressParts = (r.formatted_address ?? "").split(",").map(s => s.trim());
+                const parsedCity = addressParts[1] ?? city;
+                const stateZip = addressParts[2] ?? "";
+                const stateParts = stateZip.trim().split(" ");
+                const parsedState = stateParts[0] ?? input.state;
+                const zipCode = stateParts[1] ?? "";
+
+                cityLeads.push({
+                  businessName: r.name,
+                  address: r.formatted_address,
+                  city: parsedCity,
+                  state: parsedState,
+                  zipCode,
+                  phone: r.formatted_phone_number ?? null,
+                  website: null,
+                  googlePlaceId: place.place_id,
+                  googleRating: r.rating ?? null,
+                  googleReviewCount: r.user_ratings_total ?? null,
+                  latitude: r.geometry?.location?.lat ?? null,
+                  longitude: r.geometry?.location?.lng ?? null,
+                  hasNoWebsite: true,
+                  hasLowReviews: false,
+                  hasPoorBooking: false,
+                  hasWeakCta: false,
+                  source: "google_maps" as const,
+                  industry: input.industry,
+                });
+              } catch (detailErr) {
+                console.warn(`[Scraper] Failed details for ${place.place_id}:`, detailErr);
               }
-            } catch (detailErr) {
-              console.warn(`Failed to get details for ${place.place_id}:`, detailErr);
             }
+
+            // Bulk insert this city's leads
+            let created = 0;
+            if (cityLeads.length > 0) {
+              created = await db.bulkCreateLeads(cityLeads);
+              allNewLeads.push(...cityLeads);
+            }
+
+            cityResults.push({ city, found, noWebsite: cityNoWebsite, duplicates: cityDuplicates, created });
+            console.log(`[Scraper] ${city}: ${found} found, ${cityNoWebsite} no website, ${cityDuplicates} duplicates, ${created} created`);
           }
 
-          console.log(`[Scraper] Results: ${totalFound} found, ${skippedDistance} skipped (distance), ${skippedAddress} skipped (address), ${skippedNoPainPoint} skipped (no pain point), ${newLeads.length} leads with pain points`);
-
-          // Step 4: Bulk insert leads
-          let leadsCreated = 0;
-          if (newLeads.length > 0) {
-            leadsCreated = await db.bulkCreateLeads(newLeads);
-          }
+          const leadsCreated = allNewLeads.length;
 
           await db.updateScrapeJob(jobId, {
             status: "completed",
@@ -625,8 +564,16 @@ Return ONLY the complete HTML code, starting with <!DOCTYPE html> and ending wit
             completedAt: new Date(),
           });
 
-          return { jobId, totalFound, leadsCreated, leads: newLeads, skippedDistance, skippedAddress, skippedNoPainPoint };
+          return {
+            jobId,
+            totalFound,
+            leadsCreated,
+            totalSkippedHasWebsite,
+            totalSkippedDuplicate,
+            cityResults,
+          };
         } catch (error: any) {
+          console.error(`[Scraper] Job failed:`, error);
           await db.updateScrapeJob(jobId, {
             status: "failed",
             errorMessage: error.message,
