@@ -204,6 +204,8 @@ export const generatedWebsites = mysqlTable("generated_websites", {
   phone: varchar("phone", { length: 32 }),
   aboutInfo: text("aboutInfo"),
   // Generated output
+  templateId: varchar("templateId", { length: 64 }), // which template was used
+  ctaStyle: varchar("ctaStyle", { length: 128 }), // CTA text used
   htmlUrl: varchar("htmlUrl", { length: 1024 }).notNull(), // S3 URL to the HTML file
   previewToken: varchar("previewToken", { length: 64 }).notNull().unique(), // public shareable token
   status: mysqlEnum("websiteStatus", ["generating", "ready", "sent", "approved", "rejected"]).default("generating").notNull(),

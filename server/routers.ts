@@ -8,6 +8,8 @@ import { invokeLLM } from "./_core/llm";
 import { storagePut } from "./storage";
 import { nanoid } from "nanoid";
 import * as db from "./db";
+import { TEMPLATES, INDUSTRY_CONFIGS, getTemplateById, getSuggestedTemplate, getIndustryConfig, getIndustryImages } from "../shared/websiteTemplates";
+import { buildTemplatePrompt } from "./websitePromptBuilder";
 
 export const appRouter = router({
   system: systemRouter,
@@ -305,6 +307,11 @@ export const appRouter = router({
         return site;
       }),
 
+    // Templates list for the frontend
+    templates: publicProcedure.query(() => {
+      return { templates: TEMPLATES, industryConfigs: INDUSTRY_CONFIGS };
+    }),
+
     generate: protectedProcedure
       .input(z.object({
         leadId: z.number(),
@@ -314,9 +321,17 @@ export const appRouter = router({
         location: z.string().optional(),
         phone: z.string().optional(),
         aboutInfo: z.string().optional(),
+        templateId: z.string().min(1),
+        ctaStyle: z.string().min(1),
       }))
       .mutation(async ({ input }) => {
         const previewToken = nanoid(16);
+        const template = getTemplateById(input.templateId) ?? TEMPLATES[1];
+        const industryConfig = getIndustryConfig(input.serviceType ?? "");
+        const images = getIndustryImages(input.serviceType ?? "");
+
+        // Determine colors
+        const colors = industryConfig?.colorOverride ?? template.previewColors;
 
         // Create a placeholder record
         const websiteId = await db.createGeneratedWebsite({
@@ -327,50 +342,40 @@ export const appRouter = router({
           location: input.location ?? null,
           phone: input.phone ?? null,
           aboutInfo: input.aboutInfo ?? null,
-          htmlUrl: "", // will be updated after generation
+          templateId: input.templateId,
+          ctaStyle: input.ctaStyle,
+          htmlUrl: "",
           previewToken,
           status: "generating",
         });
 
         try {
-          // Build the LLM prompt
           const servicesList = input.services
             ? input.services.split(",").map(s => s.trim()).filter(Boolean)
-            : [input.serviceType ?? "General Services"];
+            : industryConfig?.serviceExamples?.slice(0, 6) ?? [input.serviceType ?? "General Services"];
 
-          const prompt = `You are a website generator for small local service businesses. Generate a COMPLETE, SINGLE-FILE HTML website.
+          const phoneClean = (input.phone ?? "5550000000").replace(/[^0-9+]/g, "");
+          const tonality = industryConfig?.tonality ?? "professional, trustworthy";
 
-Business Information:
-- Business Name: ${input.businessName}
-- Service Type: ${input.serviceType ?? "Service Business"}
-- Location: ${input.location ?? "Local Area"}
-- Phone: ${input.phone ?? "(555) 000-0000"}
-- Services: ${servicesList.join(", ")}
-- About: ${input.aboutInfo ?? "A trusted local business serving the community."}
-
-Requirements:
-1. Generate a COMPLETE single HTML file with embedded CSS and minimal inline JS
-2. Use a clean, professional design with a blue/navy color scheme
-3. Mobile responsive (use media queries)
-4. Include these sections:
-   - Navigation bar with business name and phone number CTA
-   - Hero section with a strong headline, subtext about the business, and a prominent "Call Now" button
-   - Services section showing each service in a card/grid layout
-   - "Why Choose Us" section with 3-4 trust signals (Licensed & Insured, Local, Experienced, etc.)
-   - Call-to-action section with phone number
-   - Footer with business name, location, and phone
-5. Every CTA button should link to tel:${input.phone ?? "5550000000"}
-6. Use Google Fonts (Inter or similar) via CDN link
-7. Use placeholder image URLs from picsum.photos for any hero/background images
-8. Make it look like a real, professional business website — not a template
-9. The design should prioritize CLARITY and CONVERSION — make it easy to understand what the business does and easy to call them
-10. Do NOT include any JavaScript frameworks, just vanilla HTML/CSS with minimal JS for mobile menu toggle
-
-Return ONLY the complete HTML code, starting with <!DOCTYPE html> and ending with </html>. No markdown, no explanation, no code fences.`;
+          // Build template-specific prompt
+          const prompt = buildTemplatePrompt({
+            template,
+            businessName: input.businessName,
+            serviceType: input.serviceType ?? "Service Business",
+            location: input.location ?? "Local Area",
+            phone: input.phone ?? "(555) 000-0000",
+            phoneClean,
+            services: servicesList,
+            aboutInfo: input.aboutInfo ?? `A trusted local ${(input.serviceType ?? "service").toLowerCase()} business proudly serving ${input.location ?? "the community"}.`,
+            ctaText: input.ctaStyle,
+            colors,
+            images,
+            tonality,
+          });
 
           const result = await invokeLLM({
             messages: [
-              { role: "system", content: "You are a professional website generator. You output ONLY valid HTML code. No markdown, no explanations, no code fences. Just pure HTML starting with <!DOCTYPE html>." },
+              { role: "system", content: `You are an elite web designer who creates stunning, high-quality websites for local service businesses. You output ONLY valid HTML code — no markdown, no explanations, no code fences. Just pure HTML starting with <!DOCTYPE html>. Every website you create looks custom-built, never cookie-cutter. You have a keen eye for typography, spacing, color harmony, and conversion-focused design.` },
               { role: "user", content: prompt },
             ],
           });
@@ -379,35 +384,22 @@ Return ONLY the complete HTML code, starting with <!DOCTYPE html> and ending wit
             ? result.choices[0].message.content
             : "";
 
-          // Clean up any markdown code fences the LLM might have added
+          // Clean up any markdown code fences
           html = html.replace(/^```html?\n?/i, "").replace(/\n?```$/i, "").trim();
-
-          // Ensure it starts with DOCTYPE
           if (!html.toLowerCase().startsWith("<!doctype")) {
             const doctypeIdx = html.toLowerCase().indexOf("<!doctype");
-            if (doctypeIdx > 0) {
-              html = html.substring(doctypeIdx);
-            }
+            if (doctypeIdx > 0) html = html.substring(doctypeIdx);
           }
 
           // Upload to S3
           const fileKey = `websites/${previewToken}-${Date.now()}.html`;
           const { url: htmlUrl } = await storagePut(fileKey, html, "text/html");
 
-          // Update the record
-          await db.updateGeneratedWebsite(websiteId, {
-            htmlUrl,
-            status: "ready",
-          });
-
+          await db.updateGeneratedWebsite(websiteId, { htmlUrl, status: "ready" });
           return { id: websiteId, previewToken, htmlUrl, status: "ready" };
         } catch (error: any) {
           console.error("[WebsiteGen] Failed:", error);
-          // Clean up the failed record
-          await db.updateGeneratedWebsite(websiteId, {
-            status: "rejected",
-            htmlUrl: "",
-          });
+          await db.updateGeneratedWebsite(websiteId, { status: "rejected", htmlUrl: "" });
           throw new Error(`Website generation failed: ${error.message}`);
         }
       }),

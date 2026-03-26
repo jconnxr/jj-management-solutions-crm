@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE `generated_websites` ADD `templateId` varchar(64); ALTER TABLE `generated_websites` ADD `ctaStyle` varchar(128);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3P9H8khdWVcmizD.065098e49b9a --database h6cag4yZseQ24Sa6JcBbXo --execute ALTER TABLE `generated_websites` ADD `templateId` varchar(64); ALTER TABLE `generated_websites` ADD `ctaStyle` varchar(128);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1279
+}

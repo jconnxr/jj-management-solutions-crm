@@ -49,3 +49,15 @@
 - [x] Add industry badge/tag styling for visual distinction
 - [x] Add clickable industry chip quick-filters at top of leads page
 - [x] Add sort-by-industry column header
+
+## Website Generation Template System
+- [x] Design 5 distinct visual templates (Bold & Modern, Clean & Trustworthy, Friendly & Approachable, Rugged & Professional, Minimal & Sleek)
+- [x] Industry-specific color palettes per template
+- [x] Industry-specific imagery from Unsplash (curated per industry)
+- [x] Multiple CTA styles (Free Estimate, Call Now, Book Online, Get a Quote, Schedule a Visit, Start Your Project Today)
+- [x] Template selection UI with visual preview cards (2-step dialog)
+- [x] Auto-suggest best template based on lead industry (via shared config)
+- [x] LLM prompt engineering for high-quality, non-cookie-cutter output (5 unique prompt builders)
+- [x] Each template has unique layout structure, typography, and section ordering
+- [ ] Generated websites include multi-page structure (Home, Services, About, Contact)
+- [ ] Test generation across multiple industries to verify quality and variety

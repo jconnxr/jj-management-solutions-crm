@@ -82,9 +82,12 @@ export default function LeadDetail() {
 
   // Generate website dialog state
   const [showGenDialog, setShowGenDialog] = useState(false);
+  const [genStep, setGenStep] = useState<"template" | "details">("template");
   const [genForm, setGenForm] = useState({
     services: "",
     aboutInfo: "",
+    templateId: "",
+    ctaStyle: "",
   });
 
   // Copy state
@@ -133,7 +136,8 @@ export default function LeadDetail() {
     onSuccess: (data) => {
       utils.websites.listByLead.invalidate({ leadId });
       setShowGenDialog(false);
-      setGenForm({ services: "", aboutInfo: "" });
+      setGenForm({ services: "", aboutInfo: "", templateId: "", ctaStyle: "" });
+      setGenStep("template");
       toast.success("Website generated! Copy the link to share.");
     },
     onError: (err) => toast.error(err.message),
@@ -194,9 +198,12 @@ export default function LeadDetail() {
             onClick={() => {
               // Pre-fill services from industry if available
               setGenForm({
-                services: lead.industry ?? "",
+                services: "",
                 aboutInfo: "",
+                templateId: "",
+                ctaStyle: "",
               });
+              setGenStep("template");
               setShowGenDialog(true);
             }}
           >
@@ -508,82 +515,130 @@ export default function LeadDetail() {
       </Dialog>
 
       {/* Generate Website Dialog */}
-      <Dialog open={showGenDialog} onOpenChange={setShowGenDialog}>
-        <DialogContent className="sm:max-w-lg">
+      <Dialog open={showGenDialog} onOpenChange={(open) => { setShowGenDialog(open); if (!open) setGenStep("template"); }}>
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-primary" />
-              Generate Website for {lead.businessName}
+              {genStep === "template" ? "Choose a Template" : "Website Details"}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              This will generate a professional website preview using the lead's data. You can then copy the link and share it on a phone call.
-            </p>
-            <div>
-              <Label>Business Name</Label>
-              <Input value={lead.businessName} disabled className="bg-secondary/50" />
+
+          {genStep === "template" ? (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Select a design template for {lead.businessName}. The suggested template is highlighted based on the industry.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {[
+                  { id: "bold-modern", name: "Bold & Modern", desc: "Premium, high-end feel with dark backgrounds and geometric accents", colors: { primary: "#6366f1", secondary: "#1e1b4b", accent: "#f59e0b" }, best: "HVAC, Epoxy, Roofing" },
+                  { id: "clean-trustworthy", name: "Clean & Trustworthy", desc: "Professional and reliable with soft shadows and clean layouts", colors: { primary: "#2563eb", secondary: "#f8fafc", accent: "#f59e0b" }, best: "Plumber, Electrician, Handyman" },
+                  { id: "friendly-approachable", name: "Friendly & Approachable", desc: "Warm, inviting design with rounded corners and playful elements", colors: { primary: "#16a34a", secondary: "#f0fdf4", accent: "#f97316" }, best: "Cleaning, Pet Services, Lawn Care" },
+                  { id: "rugged-professional", name: "Rugged & Professional", desc: "Strong, industrial feel with dark tones and bold typography", colors: { primary: "#d97706", secondary: "#1c1917", accent: "#f59e0b" }, best: "Concrete, Fencing, Junk Removal" },
+                  { id: "minimal-sleek", name: "Minimal & Sleek", desc: "Ultra-clean, sophisticated design with maximum whitespace", colors: { primary: "#0f172a", secondary: "#ffffff", accent: "#6366f1" }, best: "Detailing, Dog Training, Food" },
+                ].map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => setGenForm((p) => ({ ...p, templateId: t.id }))}
+                    className={"text-left rounded-lg border-2 p-4 transition-all hover:shadow-md " + (genForm.templateId === t.id ? "border-primary bg-primary/5 shadow-md" : "border-border hover:border-primary/40")}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="flex gap-1">
+                        <div className="w-4 h-4 rounded-full" style={{ backgroundColor: t.colors.primary }} />
+                        <div className="w-4 h-4 rounded-full" style={{ backgroundColor: t.colors.secondary, border: "1px solid #333" }} />
+                        <div className="w-4 h-4 rounded-full" style={{ backgroundColor: t.colors.accent }} />
+                      </div>
+                      {genForm.templateId === t.id && <Badge className="ml-auto text-xs">Selected</Badge>}
+                    </div>
+                    <h4 className="font-semibold text-sm">{t.name}</h4>
+                    <p className="text-xs text-muted-foreground mt-1">{t.desc}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Best for: {t.best}</p>
+                  </button>
+                ))}
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowGenDialog(false)}>Cancel</Button>
+                <Button onClick={() => setGenStep("details")} disabled={!genForm.templateId}>Next: Add Details</Button>
+              </DialogFooter>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+          ) : (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Fill in the details for the website. The more info you provide, the better the result.
+              </p>
               <div>
-                <Label>Location</Label>
+                <Label>Business Name</Label>
+                <Input value={lead.businessName} disabled className="bg-secondary/50" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Location</Label>
+                  <Input value={[lead.city, lead.state].filter(Boolean).join(", ") || lead.address || ""} disabled className="bg-secondary/50" />
+                </div>
+                <div>
+                  <Label>Phone</Label>
+                  <Input value={lead.phone ?? ""} disabled className="bg-secondary/50" />
+                </div>
+              </div>
+              <div>
+                <Label>Services (comma-separated) *</Label>
                 <Input
-                  value={[lead.city, lead.state].filter(Boolean).join(", ") || lead.address || ""}
-                  disabled
-                  className="bg-secondary/50"
+                  value={genForm.services}
+                  onChange={(e) => setGenForm((p) => ({ ...p, services: e.target.value }))}
+                  placeholder="e.g. Drain Cleaning, Water Heater Repair, Pipe Installation"
+                />
+                <p className="text-xs text-muted-foreground mt-1">List the main services this business offers</p>
+              </div>
+              <div>
+                <Label>About Info (optional)</Label>
+                <Textarea
+                  value={genForm.aboutInfo}
+                  onChange={(e) => setGenForm((p) => ({ ...p, aboutInfo: e.target.value }))}
+                  placeholder="e.g. Family-owned business serving the area for 15 years..."
+                  rows={2}
                 />
               </div>
               <div>
-                <Label>Phone</Label>
-                <Input value={lead.phone ?? ""} disabled className="bg-secondary/50" />
+                <Label>Call-to-Action Style</Label>
+                <Select value={genForm.ctaStyle} onValueChange={(v) => setGenForm((p) => ({ ...p, ctaStyle: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Choose a CTA style" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Get Your Free Estimate">Get Your Free Estimate</SelectItem>
+                    <SelectItem value="Call Now">Call Now</SelectItem>
+                    <SelectItem value="Book Online">Book Online</SelectItem>
+                    <SelectItem value="Request a Quote">Request a Quote</SelectItem>
+                    <SelectItem value="Schedule a Visit">Schedule a Visit</SelectItem>
+                    <SelectItem value="Start Your Project Today">Start Your Project Today</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setGenStep("template")}>Back</Button>
+                <Button
+                  onClick={() => {
+                    generateWebsite.mutate({
+                      leadId,
+                      businessName: lead.businessName,
+                      templateId: genForm.templateId,
+                      ctaStyle: genForm.ctaStyle || "Get Your Free Estimate",
+                      serviceType: lead.industry ?? undefined,
+                      services: genForm.services || undefined,
+                      location: [lead.city, lead.state].filter(Boolean).join(", ") || lead.address || undefined,
+                      phone: lead.phone ?? undefined,
+                      aboutInfo: genForm.aboutInfo || undefined,
+                    });
+                  }}
+                  disabled={generateWebsite.isPending || !genForm.templateId}
+                >
+                  {generateWebsite.isPending ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Generating...</>
+                  ) : (
+                    <><Sparkles className="h-4 w-4 mr-2" /> Generate Website</>
+                  )}
+                </Button>
+              </DialogFooter>
             </div>
-            <div>
-              <Label>Services (comma-separated) *</Label>
-              <Input
-                value={genForm.services}
-                onChange={(e) => setGenForm((p) => ({ ...p, services: e.target.value }))}
-                placeholder="e.g. Drain Cleaning, Water Heater Repair, Pipe Installation"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                List the main services this business offers
-              </p>
-            </div>
-            <div>
-              <Label>About Info (optional)</Label>
-              <Textarea
-                value={genForm.aboutInfo}
-                onChange={(e) => setGenForm((p) => ({ ...p, aboutInfo: e.target.value }))}
-                placeholder="e.g. Family-owned business serving the area for 15 years..."
-                rows={2}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowGenDialog(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={() => {
-                generateWebsite.mutate({
-                  leadId,
-                  businessName: lead.businessName,
-                  serviceType: lead.industry ?? undefined,
-                  services: genForm.services || undefined,
-                  location: [lead.city, lead.state].filter(Boolean).join(", ") || lead.address || undefined,
-                  phone: lead.phone ?? undefined,
-                  aboutInfo: genForm.aboutInfo || undefined,
-                });
-              }}
-              disabled={generateWebsite.isPending}
-            >
-              {generateWebsite.isPending ? (
-                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Generating...</>
-              ) : (
-                <><Sparkles className="h-4 w-4 mr-2" /> Generate Website</>
-              )}
-            </Button>
-          </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
     </div>
