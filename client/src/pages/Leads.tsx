@@ -1,7 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -33,9 +33,9 @@ import {
   Plus,
   Search,
   Globe,
-  Star,
   Phone,
   ArrowUpDown,
+  Building2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -52,8 +52,7 @@ export default function Leads() {
   const [, setLocation] = useLocation();
   const [search, setSearch] = useState("");
   const [disposition, setDisposition] = useState("all");
-  const [painPoint, setPainPoint] = useState("all");
-  const [source, setSource] = useState("all");
+  const [industry, setIndustry] = useState("all");
   const [sortBy, setSortBy] = useState("leadScore");
   const [sortOrder, setSortOrder] = useState("desc");
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -72,21 +71,22 @@ export default function Leads() {
     () => ({
       search: search || undefined,
       disposition: disposition !== "all" ? disposition : undefined,
-      painPoint: painPoint !== "all" ? painPoint : undefined,
-      source: source !== "all" ? source : undefined,
+      industry: industry !== "all" ? industry : undefined,
       sortBy,
       sortOrder,
-      limit: 100,
+      limit: 200,
     }),
-    [search, disposition, painPoint, source, sortBy, sortOrder]
+    [search, disposition, industry, sortBy, sortOrder]
   );
 
   const { data, isLoading } = trpc.leads.list.useQuery(filters);
+  const { data: industries } = trpc.leads.industries.useQuery();
   const utils = trpc.useUtils();
 
   const createLead = trpc.leads.create.useMutation({
     onSuccess: () => {
       utils.leads.list.invalidate();
+      utils.leads.industries.invalidate();
       utils.dashboard.stats.invalidate();
       setShowAddDialog(false);
       setNewLead({
@@ -104,9 +104,25 @@ export default function Leads() {
     onError: (err) => toast.error(err.message),
   });
 
-  const toggleSort = () => {
-    setSortOrder((prev) => (prev === "desc" ? "asc" : "desc"));
+  const toggleSort = (col: string) => {
+    if (sortBy === col) {
+      setSortOrder((prev) => (prev === "desc" ? "asc" : "desc"));
+    } else {
+      setSortBy(col);
+      setSortOrder("asc");
+    }
   };
+
+  // Group leads by industry for the summary bar
+  const industryCounts = useMemo(() => {
+    if (!data?.leads) return {};
+    const counts: Record<string, number> = {};
+    data.leads.forEach((lead) => {
+      const ind = lead.industry || "Unknown";
+      counts[ind] = (counts[ind] || 0) + 1;
+    });
+    return counts;
+  }, [data?.leads]);
 
   return (
     <div className="space-y-6">
@@ -114,7 +130,8 @@ export default function Leads() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Leads</h1>
           <p className="text-muted-foreground mt-1">
-            {data?.total ?? 0} total leads in your pipeline
+            {data?.total ?? 0} total leads
+            {industry !== "all" && ` in ${industry}`}
           </p>
         </div>
         <Button onClick={() => setShowAddDialog(true)} size="sm">
@@ -122,6 +139,35 @@ export default function Leads() {
           Add Lead
         </Button>
       </div>
+
+      {/* Industry Quick Filter Chips */}
+      {industries && industries.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setIndustry("all")}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
+              industry === "all"
+                ? "bg-primary text-primary-foreground border-primary"
+                : "bg-muted/50 text-muted-foreground border-border/50 hover:bg-muted hover:text-foreground"
+            }`}
+          >
+            All ({data?.total ?? 0})
+          </button>
+          {industries.map((ind) => (
+            <button
+              key={ind}
+              onClick={() => setIndustry(ind === industry ? "all" : ind)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
+                industry === ind
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-muted/50 text-muted-foreground border-border/50 hover:bg-muted hover:text-foreground"
+              }`}
+            >
+              {ind} {industryCounts[ind] ? `(${industryCounts[ind]})` : ""}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Filters */}
       <Card className="border-border/50">
@@ -150,29 +196,18 @@ export default function Leads() {
                 <SelectItem value="lost">Lost</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={painPoint} onValueChange={setPainPoint}>
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Pain Point" />
+            <Select value={industry} onValueChange={setIndustry}>
+              <SelectTrigger className="w-[200px]">
+                <Building2 className="h-4 w-4 mr-2 text-muted-foreground" />
+                <SelectValue placeholder="Business Type" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Pain Points</SelectItem>
-                <SelectItem value="no_website">No Website</SelectItem>
-                <SelectItem value="low_reviews">Low Reviews</SelectItem>
-                <SelectItem value="poor_booking">Poor Booking</SelectItem>
-                <SelectItem value="weak_cta">Weak CTA</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={source} onValueChange={setSource}>
-              <SelectTrigger className="w-[150px]">
-                <SelectValue placeholder="Source" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Sources</SelectItem>
-                <SelectItem value="google_maps">Google Maps</SelectItem>
-                <SelectItem value="facebook">Facebook</SelectItem>
-                <SelectItem value="referral">Referral</SelectItem>
-                <SelectItem value="manual">Manual</SelectItem>
-                <SelectItem value="cold_call">Cold Call</SelectItem>
+                <SelectItem value="all">All Industries</SelectItem>
+                {industries?.map((ind) => (
+                  <SelectItem key={ind} value={ind}>
+                    {ind}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -186,18 +221,26 @@ export default function Leads() {
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="w-[250px]">Business</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>Pain Points</TableHead>
-                  <TableHead>
+                  <TableHead className="w-[250px]">
                     <button
-                      onClick={toggleSort}
+                      onClick={() => toggleSort("businessName")}
                       className="flex items-center gap-1 hover:text-foreground transition-colors"
                     >
-                      Score
-                      <ArrowUpDown className="h-3 w-3" />
+                      Business
+                      {sortBy === "businessName" && <ArrowUpDown className="h-3 w-3" />}
                     </button>
                   </TableHead>
+                  <TableHead>
+                    <button
+                      onClick={() => toggleSort("industry")}
+                      className="flex items-center gap-1 hover:text-foreground transition-colors"
+                    >
+                      Industry
+                      {sortBy === "industry" && <ArrowUpDown className="h-3 w-3" />}
+                    </button>
+                  </TableHead>
+                  <TableHead>Location</TableHead>
+                  <TableHead>Pain Point</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Contact</TableHead>
                 </TableRow>
@@ -219,7 +262,7 @@ export default function Leads() {
                       colSpan={6}
                       className="text-center py-12 text-muted-foreground"
                     >
-                      No leads found. Start by scraping Google Maps or adding leads manually.
+                      No leads found. Try adjusting your filters or scrape for new leads.
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -230,16 +273,21 @@ export default function Leads() {
                       onClick={() => setLocation(`/leads/${lead.id}`)}
                     >
                       <TableCell>
-                        <div>
-                          <p className="font-medium text-sm">
-                            {lead.businessName}
-                          </p>
-                          {lead.industry && (
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              {lead.industry}
-                            </p>
-                          )}
-                        </div>
+                        <p className="font-medium text-sm">
+                          {lead.businessName}
+                        </p>
+                      </TableCell>
+                      <TableCell>
+                        {lead.industry ? (
+                          <Badge
+                            variant="outline"
+                            className="text-xs bg-blue-500/10 text-blue-400 border-blue-500/20"
+                          >
+                            {lead.industry}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {[lead.city, lead.state].filter(Boolean).join(", ") || "—"}
@@ -255,37 +303,7 @@ export default function Leads() {
                               No Site
                             </Badge>
                           )}
-                          {lead.hasLowReviews && (
-                            <Badge
-                              variant="outline"
-                              className="text-[10px] px-1.5 py-0 bg-amber-500/10 text-amber-400 border-amber-500/20"
-                            >
-                              <Star className="h-2.5 w-2.5 mr-1" />
-                              Low Rev
-                            </Badge>
-                          )}
-                          {lead.hasPoorBooking && (
-                            <Badge
-                              variant="outline"
-                              className="text-[10px] px-1.5 py-0 bg-orange-500/10 text-orange-400 border-orange-500/20"
-                            >
-                              Poor Book
-                            </Badge>
-                          )}
-                          {lead.hasWeakCta && (
-                            <Badge
-                              variant="outline"
-                              className="text-[10px] px-1.5 py-0 bg-violet-500/10 text-violet-400 border-violet-500/20"
-                            >
-                              Weak CTA
-                            </Badge>
-                          )}
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <span className="font-semibold text-primary">
-                          {lead.leadScore ?? 0}
-                        </span>
                       </TableCell>
                       <TableCell>
                         <Badge
@@ -358,7 +376,7 @@ export default function Leads() {
                   onChange={(e) =>
                     setNewLead((p) => ({ ...p, city: e.target.value }))
                   }
-                  placeholder="Dallas"
+                  placeholder="Oklahoma City"
                 />
               </div>
               <div>
@@ -368,12 +386,12 @@ export default function Leads() {
                   onChange={(e) =>
                     setNewLead((p) => ({ ...p, state: e.target.value }))
                   }
-                  placeholder="TX"
+                  placeholder="OK"
                 />
               </div>
             </div>
             <div>
-              <Label>Industry</Label>
+              <Label>Industry / Business Type</Label>
               <Input
                 value={newLead.industry}
                 onChange={(e) =>

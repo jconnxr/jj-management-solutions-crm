@@ -72,6 +72,7 @@ export async function getLeads(filters?: {
   source?: string;
   search?: string;
   painPoint?: string;
+  industry?: string;
   sortBy?: string;
   sortOrder?: string;
   limit?: number;
@@ -93,6 +94,9 @@ export async function getLeads(filters?: {
     if (filters.painPoint === "poor_booking") conditions.push(eq(leads.hasPoorBooking, true));
     if (filters.painPoint === "weak_cta") conditions.push(eq(leads.hasWeakCta, true));
   }
+  if (filters?.industry && filters.industry !== "all") {
+    conditions.push(eq(leads.industry, filters.industry));
+  }
   if (filters?.search) {
     conditions.push(
       or(
@@ -108,6 +112,7 @@ export async function getLeads(filters?: {
   const sortCol = filters?.sortBy === "leadScore" ? leads.leadScore
     : filters?.sortBy === "businessName" ? leads.businessName
     : filters?.sortBy === "createdAt" ? leads.createdAt
+    : filters?.sortBy === "industry" ? leads.industry
     : leads.leadScore;
   const sortDir = filters?.sortOrder === "asc" ? asc(sortCol) : desc(sortCol);
 
@@ -119,6 +124,16 @@ export async function getLeads(filters?: {
   ]);
 
   return { leads: rows, total: Number(countResult[0]?.count ?? 0) };
+}
+
+export async function getDistinctIndustries() {
+  const db = await getDb();
+  if (!db) return [];
+  const result = await db.selectDistinct({ industry: leads.industry })
+    .from(leads)
+    .where(sql`${leads.industry} IS NOT NULL AND ${leads.industry} != ''`)
+    .orderBy(asc(leads.industry));
+  return result.map(r => r.industry).filter(Boolean) as string[];
 }
 
 export async function getLeadById(id: number) {

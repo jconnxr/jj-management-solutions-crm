@@ -39,6 +39,7 @@ export const appRouter = router({
         source: z.string().optional(),
         search: z.string().optional(),
         painPoint: z.string().optional(),
+        industry: z.string().optional(),
         sortBy: z.string().optional(),
         sortOrder: z.string().optional(),
         limit: z.number().optional(),
@@ -47,6 +48,10 @@ export const appRouter = router({
       .query(async ({ input }) => {
         return db.getLeads(input);
       }),
+
+    industries: protectedProcedure.query(async () => {
+      return db.getDistinctIndustries();
+    }),
 
     getById: protectedProcedure
       .input(z.object({ id: z.number() }))

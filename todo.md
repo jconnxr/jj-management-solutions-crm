@@ -42,3 +42,10 @@
 
 ## Google Sheets Import #2
 - [x] Import leads from second Google Sheet into CRM database (104 leads added, 245 total in DB)
+
+## Industry Organization
+- [x] Add industry/business type filter dropdown to Leads page
+- [x] Add industry column to leads table for easy scanning
+- [x] Add industry badge/tag styling for visual distinction
+- [x] Add clickable industry chip quick-filters at top of leads page
+- [x] Add sort-by-industry column header
