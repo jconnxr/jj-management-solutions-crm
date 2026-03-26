@@ -1,0 +1,70 @@
+{
+  "query": "SELECT COUNT(*) as total_leads FROM leads; SELECT disposition, COUNT(*) as cnt FROM leads GROUP BY disposition; SELECT industry, COUNT(*) as cnt FROM leads GROUP BY industry ORDER BY cnt DESC LIMIT 15;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3P9H8khdWVcmizD.065098e49b9a --database h6cag4yZseQ24Sa6JcBbXo --execute SELECT COUNT(*) as total_leads FROM leads; SELECT disposition, COUNT(*) as cnt FROM leads GROUP BY disposition; SELECT industry, COUNT(*) as cnt FROM leads GROUP BY industry ORDER BY cnt DESC LIMIT 15;",
+  "rows": [
+    {
+      "total_leads": "245"
+    },
+    {
+      "total_leads": "disposition\tcnt"
+    },
+    {
+      "total_leads": "new\t241"
+    },
+    {
+      "total_leads": "contacted\t4"
+    },
+    {
+      "total_leads": "industry\tcnt"
+    },
+    {
+      "total_leads": "Plumber\t56"
+    },
+    {
+      "total_leads": "Plumbing\t28"
+    },
+    {
+      "total_leads": "Mobile Auto Detailing\t19"
+    },
+    {
+      "total_leads": "Concrete Contractor\t18"
+    },
+    {
+      "total_leads": "Junk Removal\t16"
+    },
+    {
+      "total_leads": "Fencing Contractor\t12"
+    },
+    {
+      "total_leads": "Dentistry\t11"
+    },
+    {
+      "total_leads": "Bounce House\t11"
+    },
+    {
+      "total_leads": "HVAC\t8"
+    },
+    {
+      "total_leads": "Chiropractic\t8"
+    },
+    {
+      "total_leads": "Dog poop pickup\t7"
+    },
+    {
+      "total_leads": "Pressure Washing\t7"
+    },
+    {
+      "total_leads": "Food truck\t6"
+    },
+    {
+      "total_leads": "Gutter Cleaning\t4"
+    },
+    {
+      "total_leads": "Cleaning Services\t4"
+    }
+  ],
+  "messages": [],
+  "stdout": "total_leads\n245\ndisposition\tcnt\nnew\t241\ncontacted\t4\nindustry\tcnt\nPlumber\t56\nPlumbing\t28\nMobile Auto Detailing\t19\nConcrete Contractor\t18\nJunk Removal\t16\nFencing Contractor\t12\nDentistry\t11\nBounce House\t11\nHVAC\t8\nChiropractic\t8\nDog poop pickup\t7\nPressure Washing\t7\nFood truck\t6\nGutter Cleaning\t4\nCleaning Services\t4\n",
+  "stderr": "",
+  "execution_time_ms": 490
+}

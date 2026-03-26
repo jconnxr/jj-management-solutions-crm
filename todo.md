@@ -39,3 +39,6 @@
 - [x] Industry presets for blue-collar services (20 presets)
 - [x] Duplicate detection by Google Place ID
 - [x] Per-city search across metro area with city breakdown
+
+## Google Sheets Import #2
+- [x] Import leads from second Google Sheet into CRM database (104 leads added, 245 total in DB)
