@@ -112,11 +112,11 @@ export default function Scraper() {
               />
             </div>
             <div>
-              <Label>Location (lat,lng or address)</Label>
+              <Label>City & State</Label>
               <Input
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
-                placeholder="e.g. 32.78,-96.80 or Dallas, TX"
+                placeholder="e.g. Oklahoma City, OK or Dallas, TX"
               />
             </div>
             <div>

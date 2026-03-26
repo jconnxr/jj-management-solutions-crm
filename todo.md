@@ -16,3 +16,4 @@
 - [x] Dark theme CRM dashboard with professional styling
 - [x] DashboardLayout integration for CRM pages
 - [x] Vitest tests for core functionality
+- [x] Fix: Lead scraper returning results outside target area (e.g., Virginia instead of Oklahoma City)

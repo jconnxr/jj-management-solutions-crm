@@ -3,7 +3,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
-import { makeRequest, PlacesSearchResult, PlaceDetailsResult } from "./_core/map";
+import { makeRequest, PlacesSearchResult, PlaceDetailsResult, GeocodingResult } from "./_core/map";
 import * as db from "./db";
 
 export const appRouter = router({
@@ -303,14 +303,55 @@ export const appRouter = router({
         });
 
         try {
-          // Step 1: Text search for businesses
+          // Step 1: Geocode the location to get lat/lng coordinates
+          // The Text Search API's location param needs lat,lng — plain text like
+          // "Oklahoma City" gets ignored and returns results from anywhere.
+          let locationCoords: string | undefined;
+          let targetCity = "";
+          let targetState = "";
+
+          // Check if location is already lat,lng format
+          const latLngMatch = input.location.match(/^(-?\d+\.?\d*),\s*(-?\d+\.?\d*)$/);
+          if (latLngMatch) {
+            locationCoords = input.location;
+          } else {
+            // Geocode the text address to coordinates
+            const geocodeResult = await makeRequest<GeocodingResult>(
+              "/maps/api/geocode/json",
+              { address: input.location }
+            );
+            if (geocodeResult.status === "OK" && geocodeResult.results?.length > 0) {
+              const geo = geocodeResult.results[0];
+              locationCoords = `${geo.geometry.location.lat},${geo.geometry.location.lng}`;
+              // Extract city and state from geocode for post-filtering
+              for (const comp of geo.address_components) {
+                if (comp.types.includes("locality")) {
+                  targetCity = comp.long_name.toLowerCase();
+                }
+                if (comp.types.includes("administrative_area_level_1")) {
+                  targetState = comp.short_name.toUpperCase();
+                }
+              }
+            }
+          }
+
+          // Step 2: Text search — include location name in query for better scoping
+          // e.g. "plumber in Oklahoma City" instead of just "plumber"
+          const scopedQuery = locationCoords
+            ? `${input.query} in ${input.location}`
+            : input.query;
+
+          const searchParams: Record<string, unknown> = {
+            query: scopedQuery,
+          };
+          if (locationCoords) {
+            searchParams.location = locationCoords;
+            searchParams.radius = input.radius ?? 10000;
+          }
+
           const searchResult = await makeRequest<PlacesSearchResult>(
             "/maps/api/place/textsearch/json",
-            {
-              query: input.query,
-              location: input.location,
-              radius: input.radius ?? 5000,
-            }
+            searchParams
           );
 
           if (searchResult.status !== "OK" || !searchResult.results?.length) {
@@ -326,9 +367,40 @@ export const appRouter = router({
           const totalFound = searchResult.results.length;
           const newLeads: any[] = [];
 
-          // Step 2: Get details for each place to check for website
+          // Helper: calculate distance between two lat/lng points in meters
+          const haversineDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+            const R = 6371000; // Earth radius in meters
+            const toRad = (d: number) => (d * Math.PI) / 180;
+            const dLat = toRad(lat2 - lat1);
+            const dLng = toRad(lng2 - lng1);
+            const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          };
+
+          // Parse center coordinates for distance filtering
+          let centerLat: number | null = null;
+          let centerLng: number | null = null;
+          if (locationCoords) {
+            const [lat, lng] = locationCoords.split(",").map(Number);
+            centerLat = lat;
+            centerLng = lng;
+          }
+          const maxDistance = (input.radius ?? 10000) * 3; // generous 3x radius for filtering
+
+          // Step 3: Get details for each place to check for website
           for (const place of searchResult.results) {
             try {
+              // Post-filter: skip results that are geographically too far
+              if (centerLat !== null && centerLng !== null && place.geometry?.location) {
+                const dist = haversineDistance(
+                  centerLat, centerLng,
+                  place.geometry.location.lat, place.geometry.location.lng
+                );
+                if (dist > maxDistance) {
+                  continue; // Skip — outside target area
+                }
+              }
+
               const details = await makeRequest<PlaceDetailsResult>(
                 "/maps/api/place/details/json",
                 {
@@ -339,6 +411,13 @@ export const appRouter = router({
 
               if (details.status === "OK" && details.result) {
                 const r = details.result;
+
+                // Post-filter: verify the address contains the target city/state
+                const addr = (r.formatted_address ?? "").toLowerCase();
+                if (targetCity && !addr.includes(targetCity) && targetState && !addr.toLowerCase().includes(targetState.toLowerCase())) {
+                  continue; // Skip — address doesn't match target area
+                }
+
                 const hasNoWebsite = !r.website;
                 const hasLowReviews = (r.user_ratings_total ?? 0) < 10 || (r.rating ?? 0) < 3.5;
 
@@ -379,7 +458,7 @@ export const appRouter = router({
             }
           }
 
-          // Step 3: Bulk insert leads
+          // Step 4: Bulk insert leads
           let leadsCreated = 0;
           if (newLeads.length > 0) {
             leadsCreated = await db.bulkCreateLeads(newLeads);
