@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE `generated_websites` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`leadId` int NOT NULL,\n\t`businessName` varchar(255) NOT NULL,\n\t`serviceType` varchar(128),\n\t`services` text,\n\t`location` varchar(255),\n\t`phone` varchar(32),\n\t`aboutInfo` text,\n\t`htmlUrl` varchar(1024) NOT NULL,\n\t`previewToken` varchar(64) NOT NULL,\n\t`websiteStatus` enum('generating','ready','sent','approved','rejected') NOT NULL DEFAULT 'generating',\n\t`sentAt` timestamp,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\t`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n\tCONSTRAINT `generated_websites_id` PRIMARY KEY(`id`),\n\tCONSTRAINT `generated_websites_previewToken_unique` UNIQUE(`previewToken`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3P9H8khdWVcmizD.065098e49b9a --database h6cag4yZseQ24Sa6JcBbXo --execute CREATE TABLE `generated_websites` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`leadId` int NOT NULL,\n\t`businessName` varchar(255) NOT NULL,\n\t`serviceType` varchar(128),\n\t`services` text,\n\t`location` varchar(255),\n\t`phone` varchar(32),\n\t`aboutInfo` text,\n\t`htmlUrl` varchar(1024) NOT NULL,\n\t`previewToken` varchar(64) NOT NULL,\n\t`websiteStatus` enum('generating','ready','sent','approved','rejected') NOT NULL DEFAULT 'generating',\n\t`sentAt` timestamp,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\t`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n\tCONSTRAINT `generated_websites_id` PRIMARY KEY(`id`),\n\tCONSTRAINT `generated_websites_previewToken_unique` UNIQUE(`previewToken`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 566
+}

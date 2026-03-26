@@ -26,10 +26,8 @@ import {
   LogOut,
   PanelLeft,
   Users,
-  Search,
-  FileText,
-  FolderKanban,
   Globe,
+  Search,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -38,10 +36,8 @@ import { Button } from "./ui/button";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
-  { icon: Search, label: "Lead Scraper", path: "/scraper" },
   { icon: Users, label: "Leads", path: "/leads" },
-  { icon: FileText, label: "Client Intake", path: "/intake" },
-  { icon: FolderKanban, label: "Projects", path: "/projects" },
+  { icon: Search, label: "Lead Scraper", path: "/scraper" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";

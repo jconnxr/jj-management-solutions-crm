@@ -8,6 +8,7 @@ import {
   clientIntake, InsertClientIntake,
   projects, InsertProject,
   scrapeJobs, InsertScrapeJob,
+  generatedWebsites, InsertGeneratedWebsite,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -305,6 +306,36 @@ export async function updateScrapeJob(id: number, data: Partial<InsertScrapeJob>
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.update(scrapeJobs).set(data).where(eq(scrapeJobs.id, id));
+}
+
+// ============================================================================
+// Generated Website helpers
+// ============================================================================
+
+export async function createGeneratedWebsite(data: InsertGeneratedWebsite) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(generatedWebsites).values(data);
+  return result[0].insertId;
+}
+
+export async function getGeneratedWebsitesByLead(leadId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(generatedWebsites).where(eq(generatedWebsites.leadId, leadId)).orderBy(desc(generatedWebsites.createdAt));
+}
+
+export async function getGeneratedWebsiteByToken(token: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(generatedWebsites).where(eq(generatedWebsites.previewToken, token)).limit(1);
+  return result[0];
+}
+
+export async function updateGeneratedWebsite(id: number, data: Partial<InsertGeneratedWebsite>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(generatedWebsites).set(data).where(eq(generatedWebsites.id, id));
 }
 
 // ============================================================================

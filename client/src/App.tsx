@@ -10,23 +10,16 @@ import Dashboard from "./pages/Dashboard";
 import Leads from "./pages/Leads";
 import LeadDetail from "./pages/LeadDetail";
 import Scraper from "./pages/Scraper";
-import Intake from "./pages/Intake";
-import IntakeDetail from "./pages/IntakeDetail";
-import Projects from "./pages/Projects";
-import ProjectDetail from "./pages/ProjectDetail";
+import WebsitePreview from "./pages/WebsitePreview";
 
 function DashboardRoutes() {
   return (
     <DashboardLayout>
       <Switch>
         <Route path="/dashboard" component={Dashboard} />
-        <Route path="/scraper" component={Scraper} />
         <Route path="/leads" component={Leads} />
         <Route path="/leads/:id" component={LeadDetail} />
-        <Route path="/intake" component={Intake} />
-        <Route path="/intake/:id" component={IntakeDetail} />
-        <Route path="/projects" component={Projects} />
-        <Route path="/projects/:id" component={ProjectDetail} />
+        <Route path="/scraper" component={Scraper} />
         <Route component={NotFound} />
       </Switch>
     </DashboardLayout>
@@ -37,6 +30,8 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      {/* Public preview route — no auth required */}
+      <Route path="/preview/:token" component={WebsitePreview} />
       <Route path="/404" component={NotFound} />
       <Route component={DashboardRoutes} />
     </Switch>

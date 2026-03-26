@@ -189,3 +189,29 @@ export const scrapeJobs = mysqlTable("scrape_jobs", {
 
 export type ScrapeJob = typeof scrapeJobs.$inferSelect;
 export type InsertScrapeJob = typeof scrapeJobs.$inferInsert;
+
+/**
+ * Generated websites - stores LLM-generated website HTML for leads
+ */
+export const generatedWebsites = mysqlTable("generated_websites", {
+  id: int("id").autoincrement().primaryKey(),
+  leadId: int("leadId").notNull(),
+  // Business data used for generation
+  businessName: varchar("businessName", { length: 255 }).notNull(),
+  serviceType: varchar("serviceType", { length: 128 }),
+  services: text("services"),
+  location: varchar("location", { length: 255 }),
+  phone: varchar("phone", { length: 32 }),
+  aboutInfo: text("aboutInfo"),
+  // Generated output
+  htmlUrl: varchar("htmlUrl", { length: 1024 }).notNull(), // S3 URL to the HTML file
+  previewToken: varchar("previewToken", { length: 64 }).notNull().unique(), // public shareable token
+  status: mysqlEnum("websiteStatus", ["generating", "ready", "sent", "approved", "rejected"]).default("generating").notNull(),
+  sentAt: timestamp("sentAt"),
+  // Timestamps
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type GeneratedWebsite = typeof generatedWebsites.$inferSelect;
+export type InsertGeneratedWebsite = typeof generatedWebsites.$inferInsert;

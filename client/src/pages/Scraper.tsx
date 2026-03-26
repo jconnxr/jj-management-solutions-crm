@@ -183,7 +183,7 @@ export default function Scraper() {
             <CardTitle className="text-base text-primary">Latest Scrape Results</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-3 gap-4 text-center">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
               <div>
                 <p className="text-2xl font-bold">{searchMutation.data.totalFound}</p>
                 <p className="text-xs text-muted-foreground">Businesses Found</p>
@@ -194,9 +194,15 @@ export default function Scraper() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-muted-foreground">
-                  {searchMutation.data.totalFound - searchMutation.data.leadsCreated}
+                  {(searchMutation.data as any).skippedNoPainPoint ?? 0}
                 </p>
-                <p className="text-xs text-muted-foreground">Already Had Website</p>
+                <p className="text-xs text-muted-foreground">Had Website</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-muted-foreground">
+                  {((searchMutation.data as any).skippedDistance ?? 0) + ((searchMutation.data as any).skippedAddress ?? 0)}
+                </p>
+                <p className="text-xs text-muted-foreground">Filtered (Location)</p>
               </div>
             </div>
           </CardContent>

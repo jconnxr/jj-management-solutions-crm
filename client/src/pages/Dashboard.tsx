@@ -22,8 +22,6 @@ const statCards = [
   { key: "proposals", label: "Proposals", icon: FileText, color: "text-cyan-400" },
   { key: "won", label: "Won", icon: Trophy, color: "text-green-400" },
   { key: "lost", label: "Lost", icon: XCircle, color: "text-red-400" },
-  { key: "activeProjects", label: "Active Projects", icon: FolderKanban, color: "text-orange-400" },
-  { key: "pendingIntakes", label: "Pending Intakes", icon: Inbox, color: "text-pink-400" },
 ] as const;
 
 export default function Dashboard() {
@@ -45,9 +43,7 @@ export default function Dashboard() {
             key={card.key}
             className="bg-card hover:bg-accent/30 transition-colors cursor-pointer border-border/50"
             onClick={() => {
-              if (card.key === "activeProjects") setLocation("/projects");
-              else if (card.key === "pendingIntakes") setLocation("/intake");
-              else setLocation("/leads");
+              setLocation("/leads");
             }}
           >
             <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -103,20 +99,7 @@ export default function Dashboard() {
                 </p>
               </div>
             </button>
-            <button
-              onClick={() => setLocation("/intake")}
-              className="w-full flex items-center gap-3 p-3 rounded-lg bg-violet-500/10 hover:bg-violet-500/20 transition-colors text-left"
-            >
-              <div className="h-10 w-10 rounded-lg bg-violet-500/20 flex items-center justify-center">
-                <FileText className="h-5 w-5 text-violet-400" />
-              </div>
-              <div>
-                <p className="font-medium text-sm">Client Intake</p>
-                <p className="text-xs text-muted-foreground">
-                  Capture project requirements from new clients
-                </p>
-              </div>
-            </button>
+
           </CardContent>
         </Card>
 

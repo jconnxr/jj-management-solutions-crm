@@ -4,6 +4,9 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { makeRequest, PlacesSearchResult, PlaceDetailsResult, GeocodingResult } from "./_core/map";
+import { invokeLLM } from "./_core/llm";
+import { storagePut } from "./storage";
+import { nanoid } from "nanoid";
 import * as db from "./db";
 
 export const appRouter = router({
@@ -280,6 +283,142 @@ export const appRouter = router({
   }),
 
   // =========================================================================
+  // Generated Websites
+  // =========================================================================
+  websites: router({
+    listByLead: protectedProcedure
+      .input(z.object({ leadId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getGeneratedWebsitesByLead(input.leadId);
+      }),
+
+    getByToken: publicProcedure
+      .input(z.object({ token: z.string() }))
+      .query(async ({ input }) => {
+        const site = await db.getGeneratedWebsiteByToken(input.token);
+        if (!site) throw new Error("Website not found");
+        return site;
+      }),
+
+    generate: protectedProcedure
+      .input(z.object({
+        leadId: z.number(),
+        businessName: z.string().min(1),
+        serviceType: z.string().optional(),
+        services: z.string().optional(),
+        location: z.string().optional(),
+        phone: z.string().optional(),
+        aboutInfo: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const previewToken = nanoid(16);
+
+        // Create a placeholder record
+        const websiteId = await db.createGeneratedWebsite({
+          leadId: input.leadId,
+          businessName: input.businessName,
+          serviceType: input.serviceType ?? null,
+          services: input.services ?? null,
+          location: input.location ?? null,
+          phone: input.phone ?? null,
+          aboutInfo: input.aboutInfo ?? null,
+          htmlUrl: "", // will be updated after generation
+          previewToken,
+          status: "generating",
+        });
+
+        try {
+          // Build the LLM prompt
+          const servicesList = input.services
+            ? input.services.split(",").map(s => s.trim()).filter(Boolean)
+            : [input.serviceType ?? "General Services"];
+
+          const prompt = `You are a website generator for small local service businesses. Generate a COMPLETE, SINGLE-FILE HTML website.
+
+Business Information:
+- Business Name: ${input.businessName}
+- Service Type: ${input.serviceType ?? "Service Business"}
+- Location: ${input.location ?? "Local Area"}
+- Phone: ${input.phone ?? "(555) 000-0000"}
+- Services: ${servicesList.join(", ")}
+- About: ${input.aboutInfo ?? "A trusted local business serving the community."}
+
+Requirements:
+1. Generate a COMPLETE single HTML file with embedded CSS and minimal inline JS
+2. Use a clean, professional design with a blue/navy color scheme
+3. Mobile responsive (use media queries)
+4. Include these sections:
+   - Navigation bar with business name and phone number CTA
+   - Hero section with a strong headline, subtext about the business, and a prominent "Call Now" button
+   - Services section showing each service in a card/grid layout
+   - "Why Choose Us" section with 3-4 trust signals (Licensed & Insured, Local, Experienced, etc.)
+   - Call-to-action section with phone number
+   - Footer with business name, location, and phone
+5. Every CTA button should link to tel:${input.phone ?? "5550000000"}
+6. Use Google Fonts (Inter or similar) via CDN link
+7. Use placeholder image URLs from picsum.photos for any hero/background images
+8. Make it look like a real, professional business website — not a template
+9. The design should prioritize CLARITY and CONVERSION — make it easy to understand what the business does and easy to call them
+10. Do NOT include any JavaScript frameworks, just vanilla HTML/CSS with minimal JS for mobile menu toggle
+
+Return ONLY the complete HTML code, starting with <!DOCTYPE html> and ending with </html>. No markdown, no explanation, no code fences.`;
+
+          const result = await invokeLLM({
+            messages: [
+              { role: "system", content: "You are a professional website generator. You output ONLY valid HTML code. No markdown, no explanations, no code fences. Just pure HTML starting with <!DOCTYPE html>." },
+              { role: "user", content: prompt },
+            ],
+          });
+
+          let html = typeof result.choices[0]?.message?.content === "string"
+            ? result.choices[0].message.content
+            : "";
+
+          // Clean up any markdown code fences the LLM might have added
+          html = html.replace(/^```html?\n?/i, "").replace(/\n?```$/i, "").trim();
+
+          // Ensure it starts with DOCTYPE
+          if (!html.toLowerCase().startsWith("<!doctype")) {
+            const doctypeIdx = html.toLowerCase().indexOf("<!doctype");
+            if (doctypeIdx > 0) {
+              html = html.substring(doctypeIdx);
+            }
+          }
+
+          // Upload to S3
+          const fileKey = `websites/${previewToken}-${Date.now()}.html`;
+          const { url: htmlUrl } = await storagePut(fileKey, html, "text/html");
+
+          // Update the record
+          await db.updateGeneratedWebsite(websiteId, {
+            htmlUrl,
+            status: "ready",
+          });
+
+          return { id: websiteId, previewToken, htmlUrl, status: "ready" };
+        } catch (error: any) {
+          console.error("[WebsiteGen] Failed:", error);
+          // Clean up the failed record
+          await db.updateGeneratedWebsite(websiteId, {
+            status: "rejected",
+            htmlUrl: "",
+          });
+          throw new Error(`Website generation failed: ${error.message}`);
+        }
+      }),
+
+    updateStatus: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        status: z.enum(["generating", "ready", "sent", "approved", "rejected"]),
+      }))
+      .mutation(async ({ input }) => {
+        await db.updateGeneratedWebsite(input.id, { status: input.status });
+        return { success: true };
+      }),
+  }),
+
+  // =========================================================================
   // Google Maps Scraper
   // =========================================================================
   scraper: router({
@@ -323,6 +462,7 @@ export const appRouter = router({
             if (geocodeResult.status === "OK" && geocodeResult.results?.length > 0) {
               const geo = geocodeResult.results[0];
               locationCoords = `${geo.geometry.location.lat},${geo.geometry.location.lng}`;
+              console.log(`[Scraper] Geocoded "${input.location}" -> ${locationCoords} (${geo.formatted_address})`);
               // Extract city and state from geocode for post-filtering
               for (const comp of geo.address_components) {
                 if (comp.types.includes("locality")) {
@@ -385,18 +525,24 @@ export const appRouter = router({
             centerLat = lat;
             centerLng = lng;
           }
-          const maxDistance = (input.radius ?? 10000) * 3; // generous 3x radius for filtering
+          const maxDistance = (input.radius ?? 10000) * 5; // generous 5x radius for metro area spread
 
           // Step 3: Get details for each place to check for website
+          let skippedDistance = 0;
+          let skippedAddress = 0;
+          let skippedNoPainPoint = 0;
+
           for (const place of searchResult.results) {
             try {
               // Post-filter: skip results that are geographically too far
+              // Use generous 5x radius to account for metro area spread
               if (centerLat !== null && centerLng !== null && place.geometry?.location) {
                 const dist = haversineDistance(
                   centerLat, centerLng,
                   place.geometry.location.lat, place.geometry.location.lng
                 );
                 if (dist > maxDistance) {
+                  skippedDistance++;
                   continue; // Skip — outside target area
                 }
               }
@@ -412,10 +558,14 @@ export const appRouter = router({
               if (details.status === "OK" && details.result) {
                 const r = details.result;
 
-                // Post-filter: verify the address contains the target city/state
+                // Post-filter: verify the address contains the target city OR state
+                // Use OR logic — if EITHER city or state matches, it's in the area
                 const addr = (r.formatted_address ?? "").toLowerCase();
-                if (targetCity && !addr.includes(targetCity) && targetState && !addr.toLowerCase().includes(targetState.toLowerCase())) {
-                  continue; // Skip — address doesn't match target area
+                const cityMatch = targetCity ? addr.includes(targetCity) : true;
+                const stateMatch = targetState ? addr.includes(targetState.toLowerCase()) : true;
+                if (targetCity && targetState && !cityMatch && !stateMatch) {
+                  skippedAddress++;
+                  continue; // Skip — address doesn't match target area at all
                 }
 
                 const hasNoWebsite = !r.website;
@@ -451,12 +601,16 @@ export const appRouter = router({
                     source: "google_maps" as const,
                     industry: input.query,
                   });
+                } else {
+                  skippedNoPainPoint++;
                 }
               }
             } catch (detailErr) {
               console.warn(`Failed to get details for ${place.place_id}:`, detailErr);
             }
           }
+
+          console.log(`[Scraper] Results: ${totalFound} found, ${skippedDistance} skipped (distance), ${skippedAddress} skipped (address), ${skippedNoPainPoint} skipped (no pain point), ${newLeads.length} leads with pain points`);
 
           // Step 4: Bulk insert leads
           let leadsCreated = 0;
@@ -471,7 +625,7 @@ export const appRouter = router({
             completedAt: new Date(),
           });
 
-          return { jobId, totalFound, leadsCreated, leads: newLeads };
+          return { jobId, totalFound, leadsCreated, leads: newLeads, skippedDistance, skippedAddress, skippedNoPainPoint };
         } catch (error: any) {
           await db.updateScrapeJob(jobId, {
             status: "failed",

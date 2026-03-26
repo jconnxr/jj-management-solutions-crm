@@ -254,4 +254,45 @@ describe("CRM Routers", () => {
       expect(Array.isArray(jobs)).toBe(true);
     });
   });
+
+  describe("websites (protected)", () => {
+    it("lists websites by lead returns empty for new lead", async () => {
+      const { ctx } = createAuthContext();
+      const caller = appRouter.createCaller(ctx);
+
+      const { id: leadId } = await caller.leads.create({
+        businessName: "Website Test Biz",
+        source: "manual",
+      });
+
+      const websites = await caller.websites.listByLead({ leadId });
+      expect(Array.isArray(websites)).toBe(true);
+      expect(websites.length).toBe(0);
+
+      await caller.leads.delete({ id: leadId });
+    });
+
+    it("rejects unauthenticated website list request", async () => {
+      const { ctx } = createUnauthContext();
+      const caller = appRouter.createCaller(ctx);
+      await expect(caller.websites.listByLead({ leadId: 1 })).rejects.toThrow();
+    });
+
+    it("getByToken throws for non-existent token", async () => {
+      const { ctx } = createUnauthContext();
+      const caller = appRouter.createCaller(ctx);
+      await expect(caller.websites.getByToken({ token: "nonexistent-token" })).rejects.toThrow("Website not found");
+    });
+
+    it("getByToken is accessible without auth (public procedure)", async () => {
+      const { ctx } = createUnauthContext();
+      const caller = appRouter.createCaller(ctx);
+      // Should throw "Website not found" not "UNAUTHORIZED"
+      try {
+        await caller.websites.getByToken({ token: "test-token-123" });
+      } catch (e: any) {
+        expect(e.message).toBe("Website not found");
+      }
+    });
+  });
 });

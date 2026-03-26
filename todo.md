@@ -1,19 +1,30 @@
 # Project TODO
 
-- [x] Database schema design (leads, call_history, notes, client_intake, projects)
-- [x] Google Maps lead scraper integration (find businesses without websites)
-- [x] Lead database with pain point categorization (no website, low reviews, poor booking, weak CTA)
-- [x] Lead management dashboard with filters, search, and bulk actions
-- [x] Call history tracking per lead with timestamps and outcomes
-- [x] Notes system per lead for partner collaboration
-- [x] Disposition status tracking (new, contacted, qualified, proposal, won, lost)
-- [x] Automated lead scoring based on pain point severity
-- [x] Lead prioritization and sorting by score
-- [x] Client intake forms for capturing project requirements
-- [x] Project tracking system with status and deadlines
-- [x] Public landing page for J&J Management Solutions
-- [ ] QR code optimization for business cards and networking
-- [x] Dark theme CRM dashboard with professional styling
-- [x] DashboardLayout integration for CRM pages
-- [x] Vitest tests for core functionality
-- [x] Fix: Lead scraper returning results outside target area (e.g., Virginia instead of Oklahoma City)
+## Core Features (MVP)
+- [x] Google Maps lead scraper (fixed location filtering)
+- [x] Leads list page with search and filtering
+- [x] Lead detail page with call notes
+- [x] Website generation button (one-click)
+- [x] Website preview with shareable link
+- [x] Copy link to clipboard functionality
+- [x] Database table for generated websites (linked to leads)
+- [x] LLM-powered website generation from lead data
+- [x] Generate Website button on LeadDetail page
+- [x] Public shareable route for generated website previews
+- [x] Copy link to clipboard for sharing on phone calls
+
+## Completed (Previous)
+- [x] Initial CRM scaffold with database
+- [x] Dashboard with stats
+- [x] Google Maps scraper (needs refinement)
+- [x] Lead management
+- [x] Call history tracking
+- [x] Notes system
+- [x] Vitest test suite (17 passing)
+- [x] Fix: Lead scraper returning results outside target area
+- [x] Fix: Scraper returning 0 leads after location fix — post-filtering likely too aggressive
+
+## Needs Refinement
+- [ ] Scraper location filtering still needs real-world testing
+- [ ] Remove unused pages (Projects, Intake, ProjectDetail) from codebase
+- [ ] Dashboard quick actions need cleanup
