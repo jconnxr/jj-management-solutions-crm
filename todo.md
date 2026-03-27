@@ -20,7 +20,7 @@
 - [x] Lead management
 - [x] Call history tracking
 - [x] Notes system
-- [x] Vitest test suite (17 passing)
+- [x] Vitest test suite (24 passing)
 - [x] Fix: Lead scraper returning results outside target area
 - [x] Fix: Scraper returning 0 leads after location fix — post-filtering likely too aggressive
 
@@ -69,3 +69,13 @@
 - [x] One-click copy to clipboard for pasting into messaging app
 - [x] Editable text before copying for personalization
 - [x] Reset button to restore original template text
+
+## J&J External Landing Page
+- [x] Home page with hero, tagline, and CTA
+- [x] About section with John and Jacob headshots and bios
+- [x] Services section (websites, online presence, systems)
+- [x] Portfolio section with 3 clickable sample websites
+- [x] Contact/Book a Meeting form
+- [x] Professional Oklahoma-local branding
+- [x] QR code optimized for business cards
+- [x] 3 high-quality sample portfolio HTML websites

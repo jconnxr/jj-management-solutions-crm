@@ -10,6 +10,7 @@ import { nanoid } from "nanoid";
 import * as db from "./db";
 import { TEMPLATES, INDUSTRY_CONFIGS, getTemplateById, getSuggestedTemplate, getIndustryConfig, getIndustryImages } from "../shared/websiteTemplates";
 import { buildTemplatePrompt } from "./websitePromptBuilder";
+import { notifyOwner } from "./_core/notification";
 
 export const appRouter = router({
   system: systemRouter,
@@ -20,6 +21,39 @@ export const appRouter = router({
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
       return { success: true } as const;
     }),
+  }),
+
+  // =========================================================================
+  // Public Contact Form
+  // =========================================================================
+  contact: router({
+    submit: publicProcedure
+      .input(z.object({
+        name: z.string().min(1),
+        businessName: z.string().optional(),
+        phone: z.string().optional(),
+        email: z.string().email().optional(),
+        message: z.string().min(1),
+        preferredContact: z.enum(["phone", "email", "text"]).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        // Notify the owner about the new contact form submission
+        const content = [
+          `Name: ${input.name}`,
+          input.businessName ? `Business: ${input.businessName}` : null,
+          input.phone ? `Phone: ${input.phone}` : null,
+          input.email ? `Email: ${input.email}` : null,
+          input.preferredContact ? `Preferred Contact: ${input.preferredContact}` : null,
+          `\nMessage:\n${input.message}`,
+        ].filter(Boolean).join("\n");
+
+        await notifyOwner({
+          title: `New Contact: ${input.name}${input.businessName ? ` (${input.businessName})` : ""}`,
+          content,
+        });
+
+        return { success: true };
+      }),
   }),
 
   // =========================================================================

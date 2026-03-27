@@ -5,12 +5,13 @@ import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import DashboardLayout from "./components/DashboardLayout";
-import Home from "./pages/Home";
+import LandingPage from "./pages/LandingPage";
 import Dashboard from "./pages/Dashboard";
 import Leads from "./pages/Leads";
 import LeadDetail from "./pages/LeadDetail";
 import Scraper from "./pages/Scraper";
 import WebsitePreview from "./pages/WebsitePreview";
+import PortfolioSite from "./pages/PortfolioSite";
 
 function DashboardRoutes() {
   return (
@@ -29,9 +30,11 @@ function DashboardRoutes() {
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Home} />
+      <Route path="/" component={LandingPage} />
       {/* Public preview route — no auth required */}
       <Route path="/preview/:token" component={WebsitePreview} />
+      {/* Portfolio sample sites — public */}
+      <Route path="/portfolio/:slug" component={PortfolioSite} />
       <Route path="/404" component={NotFound} />
       <Route component={DashboardRoutes} />
     </Switch>
