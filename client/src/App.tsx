@@ -10,11 +10,15 @@ import AboutPage from "./pages/AboutPage";
 import ServicesPage from "./pages/ServicesPage";
 import PortfolioPage from "./pages/PortfolioPage";
 import ContactPage from "./pages/ContactPage";
-import PortfolioSite from "./pages/PortfolioSite";
+import IntakeFormPage from "./pages/IntakeFormPage";
 import Dashboard from "./pages/Dashboard";
 import Leads from "./pages/Leads";
 import LeadDetail from "./pages/LeadDetail";
 import Scraper from "./pages/Scraper";
+import IntakeQueue from "./pages/IntakeQueue";
+import IntakeSubmissionDetail from "./pages/IntakeSubmissionDetail";
+import Packets from "./pages/Packets";
+import PacketDetail from "./pages/PacketDetail";
 import WebsitePreview from "./pages/WebsitePreview";
 
 function DashboardRoutes() {
@@ -25,6 +29,10 @@ function DashboardRoutes() {
         <Route path="/leads" component={Leads} />
         <Route path="/leads/:id" component={LeadDetail} />
         <Route path="/scraper" component={Scraper} />
+        <Route path="/intake-queue" component={IntakeQueue} />
+        <Route path="/intake-queue/:id" component={IntakeSubmissionDetail} />
+        <Route path="/packets" component={Packets} />
+        <Route path="/packets/:id" component={PacketDetail} />
         <Route component={NotFound} />
       </Switch>
     </DashboardLayout>
@@ -40,8 +48,8 @@ function Router() {
       <Route path="/services" component={ServicesPage} />
       <Route path="/portfolio" component={PortfolioPage} />
       <Route path="/contact" component={ContactPage} />
-      {/* Portfolio sample site viewer — full screen iframe */}
-      <Route path="/portfolio/:slug" component={PortfolioSite} />
+      {/* Public QR intake form — no auth required */}
+      <Route path="/intake" component={IntakeFormPage} />
       {/* Public preview route — no auth required */}
       <Route path="/preview/:token" component={WebsitePreview} />
       <Route path="/404" component={NotFound} />

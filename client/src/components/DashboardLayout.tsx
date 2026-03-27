@@ -28,6 +28,8 @@ import {
   Users,
   Globe,
   Search,
+  Inbox,
+  Package,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -38,6 +40,8 @@ const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
   { icon: Users, label: "Leads", path: "/leads" },
   { icon: Search, label: "Lead Scraper", path: "/scraper" },
+  { icon: Inbox, label: "Intake Queue", path: "/intake-queue" },
+  { icon: Package, label: "Packets", path: "/packets" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";

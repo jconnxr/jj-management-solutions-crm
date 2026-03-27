@@ -217,3 +217,121 @@ export const generatedWebsites = mysqlTable("generated_websites", {
 
 export type GeneratedWebsite = typeof generatedWebsites.$inferSelect;
 export type InsertGeneratedWebsite = typeof generatedWebsites.$inferInsert;
+
+/**
+ * Public intake submissions — business owners submit via QR code landing page
+ */
+export const intakeSubmissions = mysqlTable("intake_submissions", {
+  id: int("id").autoincrement().primaryKey(),
+  // Business owner info
+  ownerName: varchar("ownerName", { length: 255 }).notNull(),
+  businessName: varchar("businessName", { length: 255 }).notNull(),
+  industry: varchar("industry", { length: 128 }),
+  phone: varchar("phone", { length: 32 }),
+  email: varchar("email", { length: 320 }),
+  website: varchar("website", { length: 512 }),
+  address: text("address"),
+  city: varchar("city", { length: 128 }),
+  state: varchar("state", { length: 64 }).default("OK"),
+  // Pain points / bottleneck
+  biggestChallenge: text("biggestChallenge").notNull(),
+  currentOnlinePresence: mysqlEnum("currentOnlinePresence", [
+    "no_website",
+    "outdated_website",
+    "no_google",
+    "few_reviews",
+    "no_social",
+    "other",
+  ]),
+  monthlyBudget: varchar("monthlyBudget", { length: 64 }),
+  urgency: mysqlEnum("urgency", ["asap", "this_month", "next_few_months", "just_exploring"]).default("just_exploring"),
+  howHeard: varchar("howHeard", { length: 255 }),
+  // Processing
+  status: mysqlEnum("submissionStatus", ["new", "classified", "converted", "archived"]).default("new").notNull(),
+  leadId: int("leadId"),  // set when converted to a lead
+  classificationId: int("classificationId"),  // set when Alfred classifies
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type IntakeSubmission = typeof intakeSubmissions.$inferSelect;
+export type InsertIntakeSubmission = typeof intakeSubmissions.$inferInsert;
+
+/**
+ * AI Classifications (Alfred) — auto-analysis of intake submissions
+ */
+export const aiClassifications = mysqlTable("ai_classifications", {
+  id: int("id").autoincrement().primaryKey(),
+  intakeSubmissionId: int("intakeSubmissionId").notNull(),
+  // Classification results
+  bottleneckType: varchar("bottleneckType", { length: 128 }).notNull(),
+  bottleneckSummary: text("bottleneckSummary").notNull(),
+  suggestedInstallType: varchar("suggestedInstallType", { length: 128 }).notNull(),
+  suggestedTemplateFamily: varchar("suggestedTemplateFamily", { length: 128 }),
+  priorityScore: int("priorityScore").default(50),
+  reasoning: text("reasoning"),
+  // Raw LLM response for debugging
+  rawResponse: text("rawResponse"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AiClassification = typeof aiClassifications.$inferSelect;
+export type InsertAiClassification = typeof aiClassifications.$inferInsert;
+
+/**
+ * Install Packets — structured work orders created from leads
+ */
+export const installPackets = mysqlTable("install_packets", {
+  id: int("id").autoincrement().primaryKey(),
+  leadId: int("leadId").notNull(),
+  intakeSubmissionId: int("intakeSubmissionId"),
+  // Business identity
+  businessName: varchar("businessName", { length: 255 }).notNull(),
+  industry: varchar("industry", { length: 128 }),
+  contactName: varchar("contactName", { length: 255 }),
+  contactPhone: varchar("contactPhone", { length: 32 }),
+  contactEmail: varchar("contactEmail", { length: 320 }),
+  // Install spec
+  installType: varchar("installType", { length: 128 }).notNull(),
+  templateFamily: varchar("templateFamily", { length: 128 }),
+  stylePreset: varchar("stylePreset", { length: 128 }),
+  selectedSections: text("selectedSections"),  // JSON array of section block names
+  contentSlots: text("contentSlots"),  // JSON object of content slot values
+  missingSlots: text("missingSlots"),  // JSON array of required but empty slots
+  ctaRecommendation: varchar("ctaRecommendation", { length: 255 }),
+  operatorNotes: text("operatorNotes"),
+  // Status workflow
+  status: mysqlEnum("packetStatus", [
+    "draft",
+    "in_review",
+    "approved",
+    "in_progress",
+    "delivered",
+    "on_hold",
+  ]).default("draft").notNull(),
+  assignedTo: varchar("assignedTo", { length: 128 }),
+  createdBy: varchar("createdBy", { length: 128 }),
+  // Timestamps
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type InstallPacket = typeof installPackets.$inferSelect;
+export type InsertInstallPacket = typeof installPackets.$inferInsert;
+
+/**
+ * Packet Activity Trail — logs status changes and actions on packets
+ */
+export const packetActivity = mysqlTable("packet_activity", {
+  id: int("id").autoincrement().primaryKey(),
+  packetId: int("packetId").notNull(),
+  action: varchar("action", { length: 128 }).notNull(),
+  fromStatus: varchar("fromStatus", { length: 64 }),
+  toStatus: varchar("toStatus", { length: 64 }),
+  performedBy: varchar("performedBy", { length: 128 }).notNull(),
+  details: text("details"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type PacketActivity = typeof packetActivity.$inferSelect;
+export type InsertPacketActivity = typeof packetActivity.$inferInsert;

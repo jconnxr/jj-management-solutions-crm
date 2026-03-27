@@ -12,6 +12,99 @@ import { TEMPLATES, INDUSTRY_CONFIGS, getTemplateById, getSuggestedTemplate, get
 import { buildTemplatePrompt } from "./websitePromptBuilder";
 import { notifyOwner } from "./_core/notification";
 
+// =========================================================================
+// Alfred — AI Classification Engine
+// Runs asynchronously after each public intake submission
+// =========================================================================
+async function classifySubmission(
+  submissionId: number,
+  data: {
+    businessName: string;
+    industry?: string | null;
+    biggestChallenge: string;
+    currentOnlinePresence?: string | null;
+    website?: string | null;
+    monthlyBudget?: string | null;
+    urgency?: string | null;
+  },
+) {
+  try {
+    const result = await invokeLLM({
+      messages: [
+        {
+          role: "system",
+          content: `You are Alfred, an AI assistant for J&J Management Solutions — a web design and digital presence agency in Oklahoma. Your job is to analyze a business owner's intake submission and classify their needs.
+
+You must return a JSON object with these fields:
+- bottleneckType: one of "no_website", "outdated_website", "poor_seo", "no_google_presence", "weak_branding", "no_booking_system", "poor_reviews", "no_social_media", "multiple_issues"
+- bottleneckSummary: 1-2 sentence plain-English summary of their main problem
+- suggestedInstallType: one of "full_website", "website_redesign", "google_business_setup", "seo_package", "branding_package", "booking_integration", "social_media_setup", "comprehensive_package"
+- suggestedTemplateFamily: one of "clean_professional", "bold_modern", "minimal_sleek", "warm_friendly", "rugged_industrial" or null if not a website install
+- priorityScore: integer 1-100 (higher = more urgent/valuable)
+- reasoning: 2-3 sentences explaining your classification logic`,
+        },
+        {
+          role: "user",
+          content: `Business: ${data.businessName}
+Industry: ${data.industry ?? "Not specified"}
+Current online presence: ${data.currentOnlinePresence?.replace(/_/g, " ") ?? "Unknown"}
+Existing website: ${data.website ?? "None"}
+Monthly budget: ${data.monthlyBudget ?? "Not specified"}
+Urgency: ${data.urgency?.replace(/_/g, " ") ?? "Not specified"}
+
+Biggest challenge:
+${data.biggestChallenge}`,
+        },
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "alfred_classification",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: {
+              bottleneckType: { type: "string" },
+              bottleneckSummary: { type: "string" },
+              suggestedInstallType: { type: "string" },
+              suggestedTemplateFamily: { type: ["string", "null"] },
+              priorityScore: { type: "integer" },
+              reasoning: { type: "string" },
+            },
+            required: ["bottleneckType", "bottleneckSummary", "suggestedInstallType", "suggestedTemplateFamily", "priorityScore", "reasoning"],
+            additionalProperties: false,
+          },
+        },
+      },
+    });
+
+    const content = result.choices[0]?.message?.content;
+    const rawText = typeof content === "string" ? content : JSON.stringify(content);
+    const parsed = JSON.parse(rawText);
+
+    const classificationId = await db.createAiClassification({
+      intakeSubmissionId: submissionId,
+      bottleneckType: parsed.bottleneckType,
+      bottleneckSummary: parsed.bottleneckSummary,
+      suggestedInstallType: parsed.suggestedInstallType,
+      suggestedTemplateFamily: parsed.suggestedTemplateFamily ?? null,
+      priorityScore: parsed.priorityScore ?? 50,
+      reasoning: parsed.reasoning ?? null,
+      rawResponse: rawText,
+    });
+
+    // Update the submission with classification link
+    await db.updateIntakeSubmission(submissionId, {
+      classificationId,
+      status: "classified" as any,
+    });
+
+    console.log(`[Alfred] Classified submission ${submissionId} as ${parsed.bottleneckType} (priority: ${parsed.priorityScore})`);
+  } catch (error: any) {
+    console.error(`[Alfred] Failed to classify submission ${submissionId}:`, error.message);
+  }
+}
+
 export const appRouter = router({
   system: systemRouter,
   auth: router({
@@ -445,6 +538,235 @@ export const appRouter = router({
       }))
       .mutation(async ({ input }) => {
         await db.updateGeneratedWebsite(input.id, { status: input.status });
+        return { success: true };
+      }),
+  }),
+
+  // =========================================================================
+  // Public Intake Submissions (QR Code Landing)
+  // =========================================================================
+  intakeSubmissions: router({
+    submit: publicProcedure
+      .input(z.object({
+        ownerName: z.string().min(1),
+        businessName: z.string().min(1),
+        industry: z.string().optional(),
+        phone: z.string().optional(),
+        email: z.string().email().optional(),
+        website: z.string().optional(),
+        address: z.string().optional(),
+        city: z.string().optional(),
+        state: z.string().optional(),
+        biggestChallenge: z.string().min(1),
+        currentOnlinePresence: z.enum(["no_website", "outdated_website", "no_google", "few_reviews", "no_social", "other"]).optional(),
+        monthlyBudget: z.string().optional(),
+        urgency: z.enum(["asap", "this_month", "next_few_months", "just_exploring"]).optional(),
+        howHeard: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const id = await db.createIntakeSubmission(input);
+
+        // Notify owner
+        const content = [
+          `Name: ${input.ownerName}`,
+          `Business: ${input.businessName}`,
+          input.industry ? `Industry: ${input.industry}` : null,
+          input.phone ? `Phone: ${input.phone}` : null,
+          input.email ? `Email: ${input.email}` : null,
+          input.currentOnlinePresence ? `Online Presence: ${input.currentOnlinePresence.replace(/_/g, " ")}` : null,
+          input.urgency ? `Urgency: ${input.urgency.replace(/_/g, " ")}` : null,
+          `\nBiggest Challenge:\n${input.biggestChallenge}`,
+        ].filter(Boolean).join("\n");
+
+        await notifyOwner({
+          title: `New QR Intake: ${input.businessName}`,
+          content,
+        });
+
+        // Auto-classify with Alfred (async, don't block the response)
+        classifySubmission(id, input).catch(err => {
+          console.error("[Alfred] Classification failed for submission", id, err);
+        });
+
+        return { id, success: true };
+      }),
+
+    list: protectedProcedure
+      .input(z.object({
+        status: z.string().optional(),
+        limit: z.number().optional(),
+        offset: z.number().optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        return db.getIntakeSubmissions(input);
+      }),
+
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const submission = await db.getIntakeSubmissionById(input.id);
+        if (!submission) throw new Error("Submission not found");
+        const classification = submission.classificationId
+          ? await db.getClassificationBySubmission(input.id)
+          : undefined;
+        return { submission, classification };
+      }),
+
+    convertToLead: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        const submission = await db.getIntakeSubmissionById(input.id);
+        if (!submission) throw new Error("Submission not found");
+
+        // Create a lead from the submission
+        const leadId = await db.createLead({
+          businessName: submission.businessName,
+          industry: submission.industry ?? undefined,
+          phone: submission.phone ?? undefined,
+          email: submission.email ?? undefined,
+          website: submission.website ?? undefined,
+          address: submission.address ?? undefined,
+          city: submission.city ?? undefined,
+          state: submission.state ?? undefined,
+          hasNoWebsite: submission.currentOnlinePresence === "no_website" || !submission.website,
+          hasLowReviews: submission.currentOnlinePresence === "few_reviews",
+          source: "referral" as const,
+          disposition: "new" as const,
+        });
+
+        // Update submission status
+        await db.updateIntakeSubmission(input.id, {
+          status: "converted" as any,
+          leadId,
+        });
+
+        return { leadId, success: true };
+      }),
+
+    reclassify: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        const submission = await db.getIntakeSubmissionById(input.id);
+        if (!submission) throw new Error("Submission not found");
+        await classifySubmission(input.id, submission);
+        return { success: true };
+      }),
+
+    archive: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.updateIntakeSubmission(input.id, { status: "archived" as any });
+        return { success: true };
+      }),
+  }),
+
+  // =========================================================================
+  // Install Packets (Work Orders)
+  // =========================================================================
+  packets: router({
+    list: protectedProcedure
+      .input(z.object({
+        status: z.string().optional(),
+        leadId: z.number().optional(),
+        limit: z.number().optional(),
+        offset: z.number().optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        return db.getInstallPackets(input);
+      }),
+
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const packet = await db.getInstallPacketById(input.id);
+        if (!packet) throw new Error("Packet not found");
+        const activities = await db.getPacketActivities(input.id);
+        return { packet, activities };
+      }),
+
+    create: protectedProcedure
+      .input(z.object({
+        leadId: z.number(),
+        intakeSubmissionId: z.number().optional(),
+        businessName: z.string().min(1),
+        industry: z.string().optional(),
+        contactName: z.string().optional(),
+        contactPhone: z.string().optional(),
+        contactEmail: z.string().optional(),
+        installType: z.string().min(1),
+        templateFamily: z.string().optional(),
+        stylePreset: z.string().optional(),
+        selectedSections: z.string().optional(),
+        contentSlots: z.string().optional(),
+        missingSlots: z.string().optional(),
+        ctaRecommendation: z.string().optional(),
+        operatorNotes: z.string().optional(),
+        assignedTo: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const id = await db.createInstallPacket({
+          ...input,
+          createdBy: ctx.user?.name ?? "System",
+        });
+        // Log creation activity
+        await db.createPacketActivityRecord({
+          packetId: id,
+          action: "created",
+          toStatus: "draft",
+          performedBy: ctx.user?.name ?? "System",
+          details: `Packet created for ${input.businessName} — ${input.installType}`,
+        });
+        return { id };
+      }),
+
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        businessName: z.string().optional(),
+        industry: z.string().optional(),
+        contactName: z.string().optional(),
+        contactPhone: z.string().optional(),
+        contactEmail: z.string().optional(),
+        installType: z.string().optional(),
+        templateFamily: z.string().optional(),
+        stylePreset: z.string().optional(),
+        selectedSections: z.string().optional(),
+        contentSlots: z.string().optional(),
+        missingSlots: z.string().optional(),
+        ctaRecommendation: z.string().optional(),
+        operatorNotes: z.string().optional(),
+        assignedTo: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { id, ...data } = input;
+        await db.updateInstallPacket(id, data);
+        await db.createPacketActivityRecord({
+          packetId: id,
+          action: "updated",
+          performedBy: ctx.user?.name ?? "System",
+          details: "Packet details updated",
+        });
+        return { success: true };
+      }),
+
+    updateStatus: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        status: z.enum(["draft", "in_review", "approved", "in_progress", "delivered", "on_hold"]),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const packet = await db.getInstallPacketById(input.id);
+        if (!packet) throw new Error("Packet not found");
+        const fromStatus = packet.status;
+        await db.updateInstallPacket(input.id, { status: input.status });
+        await db.createPacketActivityRecord({
+          packetId: input.id,
+          action: "status_change",
+          fromStatus,
+          toStatus: input.status,
+          performedBy: ctx.user?.name ?? "System",
+          details: `Status changed from ${fromStatus} to ${input.status}`,
+        });
         return { success: true };
       }),
   }),

@@ -93,3 +93,26 @@
 - [x] Portfolio page (3 sample websites)
 - [x] Contact page (form + contact info + how it works)
 - [x] Update App.tsx routing for all new pages
+
+## QR Public Intake Form
+- [x] Database table for intake submissions (business info, pain points, contact)
+- [x] Public /intake route with structured form (no auth required)
+- [x] QR code generation pointing to intake URL
+- [x] Intake submissions auto-create leads in the pipeline (convert to lead action)
+- [x] Owner notification on new intake submission
+
+## AI Classification (Alfred)
+- [x] AI classification triggered on new intake submissions
+- [x] Classify business bottleneck type (no website, poor online presence, no reviews, etc.)
+- [x] Suggest install type (website build, Google Business setup, brand/logo, review mgmt)
+- [x] Suggest template family based on industry
+- [x] Classification results stored and visible on intake submission detail
+
+## Install Packet / Work Order System
+- [x] Database table for install packets (linked to leads)
+- [x] Packet creation from lead detail page
+- [x] Packet fields: template family, style preset, sections, content slots, CTA, notes
+- [x] Packet status workflow (draft → in review → approved → in progress → delivered)
+- [x] Packet review/edit page in CRM dashboard
+- [x] Packets list page in CRM sidebar nav
+- [x] Activity trail / status history on packets

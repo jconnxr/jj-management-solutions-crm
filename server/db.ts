@@ -9,6 +9,10 @@ import {
   projects, InsertProject,
   scrapeJobs, InsertScrapeJob,
   generatedWebsites, InsertGeneratedWebsite,
+  intakeSubmissions, InsertIntakeSubmission,
+  aiClassifications, InsertAiClassification,
+  installPackets, InsertInstallPacket,
+  packetActivity, InsertPacketActivity,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -369,9 +373,9 @@ export async function updateGeneratedWebsite(id: number, data: Partial<InsertGen
 
 export async function getDashboardStats() {
   const db = await getDb();
-  if (!db) return { totalLeads: 0, newLeads: 0, contacted: 0, qualified: 0, proposals: 0, won: 0, lost: 0, activeProjects: 0, pendingIntakes: 0 };
+  if (!db) return { totalLeads: 0, newLeads: 0, contacted: 0, qualified: 0, proposals: 0, won: 0, lost: 0, activeProjects: 0, pendingIntakes: 0, newSubmissions: 0, activePackets: 0 };
 
-  const [leadStats, projectStats, intakeStats] = await Promise.all([
+  const [leadStats, projectStats, intakeStats, submissionStats, packetStats] = await Promise.all([
     db.select({
       total: sql<number>`count(*)`,
       newCount: sql<number>`SUM(CASE WHEN disposition = 'new' THEN 1 ELSE 0 END)`,
@@ -387,6 +391,12 @@ export async function getDashboardStats() {
     db.select({
       pending: sql<number>`SUM(CASE WHEN intakeStatus = 'pending' THEN 1 ELSE 0 END)`,
     }).from(clientIntake),
+    db.select({
+      newCount: sql<number>`SUM(CASE WHEN submissionStatus IN ('new', 'classified') THEN 1 ELSE 0 END)`,
+    }).from(intakeSubmissions),
+    db.select({
+      active: sql<number>`SUM(CASE WHEN packetStatus NOT IN ('delivered', 'on_hold') THEN 1 ELSE 0 END)`,
+    }).from(installPackets),
   ]);
 
   const ls = leadStats[0];
@@ -400,5 +410,139 @@ export async function getDashboardStats() {
     lost: Number(ls?.lost ?? 0),
     activeProjects: Number(projectStats[0]?.active ?? 0),
     pendingIntakes: Number(intakeStats[0]?.pending ?? 0),
+    newSubmissions: Number(submissionStats[0]?.newCount ?? 0),
+    activePackets: Number(packetStats[0]?.active ?? 0),
   };
+}
+
+// ============================================================================
+// Intake Submission helpers (public QR intake)
+// ============================================================================
+
+export async function getIntakeSubmissions(filters?: {
+  status?: string;
+  limit?: number;
+  offset?: number;
+}) {
+  const db = await getDb();
+  if (!db) return { submissions: [], total: 0 };
+  const conditions = [];
+  if (filters?.status && filters.status !== "all") {
+    conditions.push(eq(intakeSubmissions.status, filters.status as any));
+  }
+  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  const [rows, countResult] = await Promise.all([
+    db.select().from(intakeSubmissions).where(where)
+      .orderBy(desc(intakeSubmissions.createdAt))
+      .limit(filters?.limit ?? 50).offset(filters?.offset ?? 0),
+    db.select({ count: sql<number>`count(*)` }).from(intakeSubmissions).where(where),
+  ]);
+  return { submissions: rows, total: Number(countResult[0]?.count ?? 0) };
+}
+
+export async function getIntakeSubmissionById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(intakeSubmissions).where(eq(intakeSubmissions.id, id)).limit(1);
+  return result[0];
+}
+
+export async function createIntakeSubmission(data: InsertIntakeSubmission) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(intakeSubmissions).values(data);
+  return result[0].insertId;
+}
+
+export async function updateIntakeSubmission(id: number, data: Partial<InsertIntakeSubmission>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(intakeSubmissions).set(data).where(eq(intakeSubmissions.id, id));
+}
+
+// ============================================================================
+// AI Classification helpers (Alfred)
+// ============================================================================
+
+export async function createAiClassification(data: InsertAiClassification) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(aiClassifications).values(data);
+  return result[0].insertId;
+}
+
+export async function getClassificationBySubmission(intakeSubmissionId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(aiClassifications)
+    .where(eq(aiClassifications.intakeSubmissionId, intakeSubmissionId)).limit(1);
+  return result[0];
+}
+
+// ============================================================================
+// Install Packet helpers
+// ============================================================================
+
+export async function getInstallPackets(filters?: {
+  status?: string;
+  leadId?: number;
+  limit?: number;
+  offset?: number;
+}) {
+  const db = await getDb();
+  if (!db) return { packets: [], total: 0 };
+  const conditions = [];
+  if (filters?.status && filters.status !== "all") {
+    conditions.push(eq(installPackets.status, filters.status as any));
+  }
+  if (filters?.leadId) {
+    conditions.push(eq(installPackets.leadId, filters.leadId));
+  }
+  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  const [rows, countResult] = await Promise.all([
+    db.select().from(installPackets).where(where)
+      .orderBy(desc(installPackets.createdAt))
+      .limit(filters?.limit ?? 50).offset(filters?.offset ?? 0),
+    db.select({ count: sql<number>`count(*)` }).from(installPackets).where(where),
+  ]);
+  return { packets: rows, total: Number(countResult[0]?.count ?? 0) };
+}
+
+export async function getInstallPacketById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(installPackets).where(eq(installPackets.id, id)).limit(1);
+  return result[0];
+}
+
+export async function createInstallPacket(data: InsertInstallPacket) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(installPackets).values(data);
+  return result[0].insertId;
+}
+
+export async function updateInstallPacket(id: number, data: Partial<InsertInstallPacket>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(installPackets).set(data).where(eq(installPackets.id, id));
+}
+
+// ============================================================================
+// Packet Activity helpers
+// ============================================================================
+
+export async function getPacketActivities(packetId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(packetActivity)
+    .where(eq(packetActivity.packetId, packetId))
+    .orderBy(desc(packetActivity.createdAt));
+}
+
+export async function createPacketActivityRecord(data: InsertPacketActivity) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(packetActivity).values(data);
+  return result[0].insertId;
 }
