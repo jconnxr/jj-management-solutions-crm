@@ -79,3 +79,17 @@
 - [x] Professional Oklahoma-local branding
 - [x] QR code optimized for business cards
 - [x] 3 high-quality sample portfolio HTML websites
+
+## Bug Fixes
+- [x] Fix: Landing page not showing at root URL / — was showing old published version, dev server has correct landing page
+
+## Multi-Page Landing Site Conversion
+- [x] Convert single scrollable landing page into multi-page site
+- [x] Shared navigation component with active page highlighting
+- [x] Shared footer component
+- [x] Home page (hero + brief intro + CTAs)
+- [x] About page (John & Jacob bios, headshots, values)
+- [x] Services page (full service grid + pricing)
+- [x] Portfolio page (3 sample websites)
+- [x] Contact page (form + contact info + how it works)
+- [x] Update App.tsx routing for all new pages

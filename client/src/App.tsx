@@ -6,12 +6,16 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import DashboardLayout from "./components/DashboardLayout";
 import LandingPage from "./pages/LandingPage";
+import AboutPage from "./pages/AboutPage";
+import ServicesPage from "./pages/ServicesPage";
+import PortfolioPage from "./pages/PortfolioPage";
+import ContactPage from "./pages/ContactPage";
+import PortfolioSite from "./pages/PortfolioSite";
 import Dashboard from "./pages/Dashboard";
 import Leads from "./pages/Leads";
 import LeadDetail from "./pages/LeadDetail";
 import Scraper from "./pages/Scraper";
 import WebsitePreview from "./pages/WebsitePreview";
-import PortfolioSite from "./pages/PortfolioSite";
 
 function DashboardRoutes() {
   return (
@@ -30,12 +34,18 @@ function DashboardRoutes() {
 function Router() {
   return (
     <Switch>
+      {/* Public landing pages */}
       <Route path="/" component={LandingPage} />
+      <Route path="/about" component={AboutPage} />
+      <Route path="/services" component={ServicesPage} />
+      <Route path="/portfolio" component={PortfolioPage} />
+      <Route path="/contact" component={ContactPage} />
+      {/* Portfolio sample site viewer — full screen iframe */}
+      <Route path="/portfolio/:slug" component={PortfolioSite} />
       {/* Public preview route — no auth required */}
       <Route path="/preview/:token" component={WebsitePreview} />
-      {/* Portfolio sample sites — public */}
-      <Route path="/portfolio/:slug" component={PortfolioSite} />
       <Route path="/404" component={NotFound} />
+      {/* CRM dashboard — requires auth */}
       <Route component={DashboardRoutes} />
     </Switch>
   );
