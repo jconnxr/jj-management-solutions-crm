@@ -5,12 +5,6 @@ import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import DashboardLayout from "./components/DashboardLayout";
-import LandingPage from "./pages/LandingPage";
-import AboutPage from "./pages/AboutPage";
-import ServicesPage from "./pages/ServicesPage";
-import PortfolioPage from "./pages/PortfolioPage";
-import ContactPage from "./pages/ContactPage";
-import IntakeFormPage from "./pages/IntakeFormPage";
 import Dashboard from "./pages/Dashboard";
 import Leads from "./pages/Leads";
 import LeadDetail from "./pages/LeadDetail";
@@ -42,18 +36,10 @@ function DashboardRoutes() {
 function Router() {
   return (
     <Switch>
-      {/* Public landing pages */}
-      <Route path="/" component={LandingPage} />
-      <Route path="/about" component={AboutPage} />
-      <Route path="/services" component={ServicesPage} />
-      <Route path="/portfolio" component={PortfolioPage} />
-      <Route path="/contact" component={ContactPage} />
-      {/* Public QR intake form — no auth required */}
-      <Route path="/intake" component={IntakeFormPage} />
       {/* Public preview route — no auth required */}
       <Route path="/preview/:token" component={WebsitePreview} />
       <Route path="/404" component={NotFound} />
-      {/* CRM dashboard — requires auth */}
+      {/* CRM dashboard — requires auth, root redirects here */}
       <Route component={DashboardRoutes} />
     </Switch>
   );

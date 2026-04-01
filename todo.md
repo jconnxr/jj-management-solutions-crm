@@ -71,28 +71,28 @@
 - [x] Reset button to restore original template text
 
 ## J&J External Landing Page
-- [x] Home page with hero, tagline, and CTA
-- [x] About section with John and Jacob headshots and bios
-- [x] Services section (websites, online presence, systems)
-- [x] Portfolio section with 3 clickable sample websites
-- [x] Contact/Book a Meeting form
-- [x] Professional Oklahoma-local branding
-- [x] QR code optimized for business cards
-- [x] 3 high-quality sample portfolio HTML websites
+- [x] Home page with hero, tagline, and CTA — REMOVED
+- [x] About section with John and Jacob headshots and bios — REMOVED
+- [x] Services section (websites, online presence, systems) — REMOVED
+- [x] Portfolio section with 3 clickable sample websites — REMOVED
+- [x] Contact/Book a Meeting form — REMOVED
+- [x] Professional Oklahoma-local branding — REMOVED
+- [x] QR code optimized for business cards — REMOVED
+- [x] 3 high-quality sample portfolio HTML websites — REMOVED
 
 ## Bug Fixes
 - [x] Fix: Landing page not showing at root URL / — was showing old published version, dev server has correct landing page
 
 ## Multi-Page Landing Site Conversion
-- [x] Convert single scrollable landing page into multi-page site
-- [x] Shared navigation component with active page highlighting
-- [x] Shared footer component
-- [x] Home page (hero + brief intro + CTAs)
-- [x] About page (John & Jacob bios, headshots, values)
-- [x] Services page (full service grid + pricing)
-- [x] Portfolio page (3 sample websites)
-- [x] Contact page (form + contact info + how it works)
-- [x] Update App.tsx routing for all new pages
+- [x] Convert single scrollable landing page into multi-page site — REMOVED
+- [x] Shared navigation component with active page highlighting — REMOVED
+- [x] Shared footer component — REMOVED
+- [x] Home page (hero + brief intro + CTAs) — REMOVED
+- [x] About page (John & Jacob bios, headshots, values) — REMOVED
+- [x] Services page (full service grid + pricing) — REMOVED
+- [x] Portfolio page (3 sample websites) — REMOVED
+- [x] Contact page (form + contact info + how it works) — REMOVED
+- [x] Update App.tsx routing for all new pages — REMOVED
 
 ## QR Public Intake Form
 - [x] Database table for intake submissions (business info, pain points, contact)
